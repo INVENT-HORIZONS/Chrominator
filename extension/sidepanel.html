@@ -31,6 +31,9 @@
     <span class="busname">I²C</span>
     <span class="buspins" id="i2cPins"></span>
     <div class="busopts">
+      <label>Role <select id="i2cRole" disabled>
+        <option value="master" selected>Master</option><option value="slave">Slave</option>
+      </select></label>
       <label>Clock <select id="i2cClock" disabled>
         <option value="100000" selected>100 kHz</option><option value="400000">400 kHz</option>
       </select></label>
@@ -41,6 +44,9 @@
     <span class="busname">SPI</span>
     <span class="buspins" id="spiPins"></span>
     <div class="busopts">
+      <label>Role <select id="spiRole" disabled>
+        <option value="master" selected>Master</option><option value="slave">Slave</option>
+      </select></label>
       <label>Clock <select id="spiClock" disabled>
         <option value="125000">125 kHz</option><option value="250000">250 kHz</option>
         <option value="500000">500 kHz</option><option value="1000000" selected>1 MHz</option>

@@ -99,7 +99,10 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   aren't INPUT back to INPUT (via SET_MODE), then `renderPin` shows them disabled with their role
   (`row.kind = 'bus:<id>'`). `busOn` lives only in the panel; the board isn't told and there is no
   protocol support yet. When bus traffic is added, it needs protocol commands (and the pins should
-  become RESERVED-while-on on the board side).
+  become RESERVED-while-on on the board side). Each bus row has Role (Master/Slave), plus I²C
+  clock and SPI clock/mode/order selects; all are placeholders that nothing reads yet. The user is
+  still designing how master and slave traffic will work; don't implement it until asked.
+  Sniffing was considered and dropped (I²C slave must ACK; Uno SPI slave sees one direction only).
 - **Capturing pins belong to the Scope**: a pin in CAPTURE mode is greyed out in the Pins list
   (`row.kind = 'capture'`, select disabled, colour badge "Scope A<n>"). It is stopped from the ✕ on
   its legend entry (`Scope` `onStop` → `changeMode(pin, MODE.ANALOG)`) or by All pins safe.
