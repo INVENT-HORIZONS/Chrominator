@@ -51,8 +51,8 @@ every capturing channel overlaid in its own colour (shown next to the pin). The 
 all capturing pins at the same instant, 976.6 times a second (every 1.024 ms), and sends them in
 32-sample blocks; the time axis comes from the board's clock, not the PC's. Pick 1 s to 2 min
 across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze the picture
-(capture carries on underneath), the **V** next to each trace to hide or show its live voltage
-(handy when a fast signal just makes the number flicker; remembered per channel), and **save CSV** to export everything held (about the last
+(capture carries on underneath), the **V** next to each trace to show its live voltage (off by default, since a fast signal
+just makes the number flicker; remembered per channel), and **save CSV** to export everything held (about the last
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
