@@ -9,8 +9,8 @@ const BLOCK = 32;
 export const TRACE_COLORS = ['#2f81f7', '#e5534b', '#3fb950', '#d29922', '#a371f7', '#39c5cf'];
 
 export class Scope {
-  constructor({ canvas, legend, rateLabel, windowSelect, rangeSelect, runButton, clearButton, saveButton }) {
-    Object.assign(this, { canvas, legend, rateLabel, windowSelect, rangeSelect, runButton });
+  constructor({ canvas, legend, rateLabel, windowSelect, rangeSelect, runButton, clearButton, saveButton, onStop }) {
+    Object.assign(this, { canvas, legend, rateLabel, windowSelect, rangeSelect, runButton, onStop });
     this.ctx = canvas.getContext('2d');
     this.channels = new Map();            // ch -> { raw: Uint16Array, tick: Int32Array, latest }
     this.active = [];                     // channels currently in capture mode, display order
@@ -195,6 +195,12 @@ export class Scope {
       item.className = 'trace';
       item.style.setProperty('--c', TRACE_COLORS[ch % TRACE_COLORS.length]);
       item.innerHTML = `<i></i>A${ch} <b data-ch="${ch}">—</b>`;
+      if (this.onStop) {
+        const x = Object.assign(document.createElement('button'), { type: 'button', className: 'stop', textContent: '✕',
+                                                                    title: `Stop capturing A${ch}` });
+        x.addEventListener('click', () => this.onStop(ch));
+        item.append(x);
+      }
       return item;
     }));
     this.#updateLegendValues();

@@ -32,7 +32,11 @@ function busOwner(pin) {
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
   windowSelect: $('scopeWindow'), rangeSelect: $('scopeRange'),
-  runButton: $('scopeRun'), clearButton: $('scopeClear'), saveButton: $('scopeSave')
+  runButton: $('scopeRun'), clearButton: $('scopeClear'), saveButton: $('scopeSave'),
+  onStop: ch => {                           // ✕ on a trace: stop capturing, pin goes back to Analog
+    const pin = rows.findIndex(r => r?.caps.adcChannel === ch);
+    if (pin >= 0 && link) changeMode(pin, MODE.ANALOG);
+  }
 });
 
 // ---------------- log & stats ----------------
@@ -225,6 +229,19 @@ function renderPin(pin, { mode, value }) {
   const owner = busOwner(pin);
   row.el.classList.toggle('onbus', !!owner);
   row.select.disabled = !!owner;
+  // A capturing pin belongs to the Scope: greyed out here, stopped from the Scope's legend.
+  if (!owner && mode === MODE.CAPTURE) {
+    row.el.classList.add('onbus');
+    row.select.disabled = true;
+    if (row.kind === 'capture') return;
+    row.kind = 'capture';
+    row.refs = {};
+    const badge = el('span', 'busrole capture', `Scope A${row.caps.adcChannel}`);
+    badge.style.setProperty('--c', TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length]);
+    badge.title = 'Captured on the Scope. Stop it with the ✕ next to this trace in the Scope.';
+    row.ctl.replaceChildren(badge);
+    return;
+  }
   if (owner) {
     const kind = `bus:${owner.id}`;
     if (row.kind === kind) return;
@@ -256,14 +273,8 @@ function renderPin(pin, { mode, value }) {
     r.addEventListener('input', () => { num.textContent = pwmText(+r.value); pwmSend(pin, +r.value); });
     row.refs.range = r; row.refs.num = num;
     ctl.append(r, num);
-  } else if (mode === MODE.ANALOG || mode === MODE.CAPTURE) {
+  } else if (mode === MODE.ANALOG) {
     const bar = el('span', 'bar'); bar.append(document.createElement('i'));
-    if (mode === MODE.CAPTURE) {
-      const color = TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length];
-      const sw = el('span', 'swatch'); sw.style.setProperty('--c', color); sw.title = 'Trace colour on the scope';
-      bar.firstChild.style.background = color;
-      ctl.append(sw);
-    }
     row.refs.bar = bar.firstChild;
     row.refs.volts = el('span', 'volts', '—');
     row.refs.raw = el('span', 'raw', '');
@@ -298,7 +309,7 @@ function updateInputs({ levels, adc }) {
       // Read-back check: an output that reads the opposite level is probably shorted or overloaded.
       const bad = now - row.lastWrite > 300 && high !== (cfg.value ? 1 : 0);
       row.refs.mismatch.textContent = bad ? `reads ${high ? 'HIGH' : 'LOW'}!` : '';
-    } else if ((cfg.mode === MODE.ANALOG || cfg.mode === MODE.CAPTURE) && row.caps.adcChannel != null) {
+    } else if (cfg.mode === MODE.ANALOG && row.caps.adcChannel != null) {
       const raw = adc[row.caps.adcChannel];
       if (raw == null) return;
       row.refs.volts.textContent = `${(raw * vrefMv / full / 1000).toFixed(3)} V`;

@@ -44,7 +44,7 @@ link the whole time, and the board drops every pin to a safe state if the browse
 | Output | On/off switch; shows `reads LOW!` if the pin doesn't follow (short or overload) |
 | PWM (pins marked ~) | Slider, 0–255 |
 | Analog (A0–A5) | Voltage (5 V reference), raw reading and a bar |
-| Capture (A0–A5) | Same as Analog, plus the pin is sampled ~1000 times a second and drawn on the **Scope** |
+| Capture (A0–A5) | The pin is sampled ~1000 times a second and drawn on the **Scope**; its row is greyed out, and the ✕ next to its trace in the Scope stops it (back to Analog) |
 
 **Scope.** Put one or more analog pins in **Capture** and the Scope appears below the pins, with
 every capturing channel overlaid in its own colour (shown next to the pin). The board samples

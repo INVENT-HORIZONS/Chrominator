@@ -100,6 +100,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   (`row.kind = 'bus:<id>'`). `busOn` lives only in the panel; the board isn't told and there is no
   protocol support yet. When bus traffic is added, it needs protocol commands (and the pins should
   become RESERVED-while-on on the board side).
+- **Capturing pins belong to the Scope**: a pin in CAPTURE mode is greyed out in the Pins list
+  (`row.kind = 'capture'`, select disabled, colour badge "Scope A<n>"). It is stopped from the ✕ on
+  its legend entry (`Scope` `onStop` → `changeMode(pin, MODE.ANALOG)`) or by All pins safe.
 - **Collapsible panels**: `initCollapsibles()` in `ui.js` turns each Buses/Pins/Scope `<h2>` into a
   `button.fold`; `section.folded` hides everything but `.sectionhead`, so header controls stay
   usable. Diagnostics and Event log are `<details>`. Fold state is saved per viewer in
