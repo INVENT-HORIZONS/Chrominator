@@ -55,6 +55,11 @@ across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
+**Buses.** Above the pins, switch on **I²C** (SDA A4, SCL A5) or **SPI** (SCK D13, MOSI D11,
+MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
+labelled with their role until the bus is switched off. The clock, mode and bit-order settings
+are there, but sending and receiving data isn't implemented yet.
+
 **All pins safe** puts every pin back to a plain input. D0/D1 carry the USB serial link and
 can't be used.
 

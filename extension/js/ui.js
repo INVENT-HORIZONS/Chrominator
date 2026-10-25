@@ -10,6 +10,25 @@ const MAX_LOG = 300;
 let transport = null, link = null, port = null, busy = false;
 let rows = [];                     // per pin: { el, select, ctl, kind, refs, lastWrite }
 
+// ---------------- buses ----------------
+// Pins each bus takes over, by board ID. All supported boards share the Uno R3 header layout.
+const UNO_BUSES = {
+  i2c: { name: 'I²C', pins: [[18, 'SDA'], [19, 'SCL']] },
+  spi: { name: 'SPI', pins: [[13, 'SCK'], [11, 'MOSI'], [12, 'MISO'], [10, 'SS']] }
+};
+const BOARD_BUSES = { 1: UNO_BUSES, 2: UNO_BUSES, 3: UNO_BUSES };
+let buses = UNO_BUSES;
+const busOn = { i2c: false, spi: false };     // UI state only for now; the board isn't told yet
+
+function busOwner(pin) {
+  for (const [id, bus] of Object.entries(buses)) {
+    if (!busOn[id]) continue;
+    const hit = bus.pins.find(([p]) => p === pin);
+    if (hit) return { id, name: bus.name, role: hit[1] };
+  }
+  return null;
+}
+
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
   windowSelect: $('scopeWindow'), rangeSelect: $('scopeRange'),
@@ -56,6 +75,7 @@ function setState(state) {
   $('linkPill').textContent = STATE_TEXT[state];
   $('eye').classList.toggle('on', state === LINK.UP);
   $('pinsSection').classList.toggle('offline', state !== LINK.UP);
+  $('busSection').classList.toggle('offline', state !== LINK.UP);
   $('btnConnect').textContent = state === LINK.STOPPED ? 'Connect' : 'Disconnect';
   $('btnChoose').hidden = state !== LINK.STOPPED;
   if (state === LINK.STOPPED) { $('rtt').textContent = ''; }
@@ -111,6 +131,7 @@ async function disconnect(say = true) {
   setState(LINK.STOPPED);
   $('boardInfo').textContent = 'No board connected';
   $('pinsSection').hidden = true;
+  $('busSection').hidden = true;
   $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
@@ -156,7 +177,37 @@ function buildPins({ hello, caps, config }) {
   });
   $('pinList').replaceChildren(...rows.map(r => r.el));
   $('pinsSection').hidden = false;
+  buses = BOARD_BUSES[hello.boardId] || UNO_BUSES;
+  for (const [id, bus] of Object.entries(buses)) {
+    $(`${id}Pins`).textContent = bus.pins.map(([p, role]) => `${role}\u00A0${pinLabel(p, caps[p])}`).join(' · ');
+    syncBusControls(id);
+  }
+  $('busSection').hidden = false;
   renderAllPins(config);
+}
+
+function syncBusControls(id) {
+  $(`${id}On`).checked = busOn[id];
+  $(id === 'i2c' ? 'busI2c' : 'busSpi').classList.toggle('on', busOn[id]);
+  document.querySelectorAll(`#${id === 'i2c' ? 'busI2c' : 'busSpi'} .busopts select`).forEach(sel => { sel.disabled = !busOn[id]; });
+}
+
+async function setBus(id, on) {
+  const bus = buses[id];
+  if (on && link?.board) {
+    // Hand the pins over in a known state: anything driving or capturing goes back to a plain input.
+    for (const [pin] of bus.pins) {
+      if (link.board.config[pin].mode === MODE.INPUT) continue;
+      try { await link.setMode(pin, MODE.INPUT); }
+      catch (e) { log('error', `${bus.name}: could not release ${pinLabel(pin, rows[pin].caps)}: ${e.message}`); }
+    }
+  }
+  busOn[id] = on;
+  syncBusControls(id);
+  for (const [pin] of bus.pins) if (rows[pin]) rows[pin].kind = null;     // force the rows to redraw
+  if (link?.board) renderAllPins(link.board.config);
+  const list = bus.pins.map(([p, role]) => `${pinLabel(p, rows[p]?.caps)} (${role})`).join(', ');
+  log('info', on ? `${bus.name} on: ${list} reserved for the bus.` : `${bus.name} off: ${list} available again.`);
 }
 
 function renderAllPins(config) {
@@ -171,6 +222,17 @@ function renderAllPins(config) {
 function renderPin(pin, { mode, value }) {
   const row = rows[pin];
   row.select.value = mode;
+  const owner = busOwner(pin);
+  row.el.classList.toggle('onbus', !!owner);
+  row.select.disabled = !!owner;
+  if (owner) {
+    const kind = `bus:${owner.id}`;
+    if (row.kind === kind) return;
+    row.kind = kind;
+    row.refs = {};
+    row.ctl.replaceChildren(el('span', 'busrole', `${owner.name} ${owner.role}`));
+    return;
+  }
   if (row.kind === mode) { syncValue(row, mode, value); return; }
   row.kind = mode;
   row.refs = {};
@@ -287,6 +349,8 @@ $('btnSafe').onclick = async () => {
   try { await link.resetPins(); log('info', 'All pins set to safe inputs.'); }
   catch (e) { log('error', 'Reset failed: ' + e.message); }
 };
+$('i2cOn').addEventListener('change', e => setBus('i2c', e.target.checked));
+$('spiOn').addEventListener('change', e => setBus('spi', e.target.checked));
 $('btnClearLog').onclick = e => { e.preventDefault(); $('log').replaceChildren(); };
 $('diag').addEventListener('toggle', renderStats);
 

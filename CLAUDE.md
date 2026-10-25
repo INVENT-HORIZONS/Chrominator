@@ -94,6 +94,12 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   UI reacts to events; it never parses frames itself.
 - Pin rows are built once per board (`buildPins`) from the board's capabilities, then updated in
   place (`renderPin` rebuilds a row's control only when its mode changes; `updateInputs` updates values).
+- **Buses section (I²C / SPI) is UI-only so far**: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
+  bus to its pins (I²C A4/A5; SPI D13/D11/D12/D10). Turning a bus on sets any of its pins that
+  aren't INPUT back to INPUT (via SET_MODE), then `renderPin` shows them disabled with their role
+  (`row.kind = 'bus:<id>'`). `busOn` lives only in the panel; the board isn't told and there is no
+  protocol support yet. When bus traffic is added, it needs protocol commands (and the pins should
+  become RESERVED-while-on on the board side).
 - PWM slider writes are coalesced: one write in flight per pin, always ending on the latest value.
 - Output read-back: an OUTPUT pin whose level disagrees with its value (300 ms after a write)
   shows `reads HIGH!/LOW!` — a short or overload hint.
