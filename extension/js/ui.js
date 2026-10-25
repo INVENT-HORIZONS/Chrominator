@@ -349,6 +349,39 @@ $('btnSafe').onclick = async () => {
   try { await link.resetPins(); log('info', 'All pins set to safe inputs.'); }
   catch (e) { log('error', 'Reset failed: ' + e.message); }
 };
+// ---------------- collapsible panels ----------------
+// Buses, Pins and Scope fold up from their heading; Diagnostics and Event log are <details>.
+// Header controls (All pins safe, scope settings) stay usable while a panel is folded.
+// Folded/open state is remembered per viewer in localStorage.
+const FOLD_KEY = 'chrominator.folded';
+function loadFolds() { try { return JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch { return {}; } }
+function saveFold(id, folded) {
+  const f = loadFolds(); f[id] = folded;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(f)); } catch {}
+}
+function initCollapsibles() {
+  const folds = loadFolds();
+  for (const sec of document.querySelectorAll('section.buses, section.pins, section.scope')) {
+    const h2 = sec.querySelector('.sectionhead h2');
+    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'fold' });
+    btn.title = 'Show or hide this panel';
+    h2.replaceWith(btn);
+    btn.append(h2);
+    const apply = folded => {
+      sec.classList.toggle('folded', folded);
+      btn.setAttribute('aria-expanded', String(!folded));
+    };
+    apply(!!folds[sec.id]);
+    btn.addEventListener('click', () => { const f = !sec.classList.contains('folded'); apply(f); saveFold(sec.id, f); });
+  }
+  for (const d of document.querySelectorAll('details.diag, details.logbox')) {
+    const id = d.id || d.className;
+    if (id in folds) d.open = !folds[id];
+    d.addEventListener('toggle', () => saveFold(id, !d.open));
+  }
+}
+initCollapsibles();
+
 $('i2cOn').addEventListener('change', e => setBus('i2c', e.target.checked));
 $('spiOn').addEventListener('change', e => setBus('spi', e.target.checked));
 $('btnClearLog').onclick = e => { e.preventDefault(); $('log').replaceChildren(); };

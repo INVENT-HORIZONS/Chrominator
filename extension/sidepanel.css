@@ -133,3 +133,14 @@ dt { color: var(--muted); } dd { margin: 0; }
 .pin.onbus { color: var(--muted); }
 .pin.onbus select { opacity: .5; }
 .busrole { font: 600 11px Consolas, monospace; padding: 1px 6px; border-radius: 3px; background: var(--track); color: var(--accent); }
+
+/* Collapsible panels: the heading is a toggle with the same chevron as the <details> panels */
+button.fold { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; padding: 2px 0; margin: 0; }
+button.fold:hover h2 { color: var(--text); }
+button.fold::before, summary::before { content: ""; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--muted); transition: transform .15s; display: inline-block; }
+section.folded button.fold::before, details:not([open]) > summary::before { transform: rotate(-90deg); }
+section.folded > :not(.sectionhead) { display: none !important; }
+section.folded .sectionhead { margin-bottom: 0; }
+summary { list-style: none; display: flex; align-items: center; gap: 6px; }
+summary::-webkit-details-marker { display: none; }

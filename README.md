@@ -60,6 +60,9 @@ MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in th
 labelled with their role until the bus is switched off. The clock, mode and bit-order settings
 are there, but sending and receiving data isn't implemented yet.
 
+Every panel folds up: click its heading (Buses, Pins, Scope, Diagnostics, Event log). Chrominator
+remembers which ones you folded.
+
 **All pins safe** puts every pin back to a plain input. D0/D1 carry the USB serial link and
 can't be used.
 

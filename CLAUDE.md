@@ -100,6 +100,11 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   (`row.kind = 'bus:<id>'`). `busOn` lives only in the panel; the board isn't told and there is no
   protocol support yet. When bus traffic is added, it needs protocol commands (and the pins should
   become RESERVED-while-on on the board side).
+- **Collapsible panels**: `initCollapsibles()` in `ui.js` turns each Buses/Pins/Scope `<h2>` into a
+  `button.fold`; `section.folded` hides everything but `.sectionhead`, so header controls stay
+  usable. Diagnostics and Event log are `<details>`. Fold state is saved per viewer in
+  localStorage (`chrominator.folded`, keyed by section id). New panels: give them an id and a
+  `.sectionhead h2`, and add their class to the selector.
 - PWM slider writes are coalesced: one write in flight per pin, always ending on the latest value.
 - Output read-back: an OUTPUT pin whose level disagrees with its value (300 ms after a write)
   shows `reads HIGH!/LOW!` — a short or overload hint.
