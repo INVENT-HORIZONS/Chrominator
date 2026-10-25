@@ -6,6 +6,11 @@
 
 const CAPACITY = 1 << 17;                 // samples kept per channel (~134 s at 1.024 ms)
 const BLOCK = 32;
+const METER_KEY = 'chrominator.scopeMeterOff';   // channels whose live voltage readout is hidden
+
+function loadMeterOff() {
+  try { return new Set(JSON.parse(localStorage.getItem(METER_KEY)) || []); } catch { return new Set(); }
+}
 export const TRACE_COLORS = ['#2f81f7', '#e5534b', '#3fb950', '#d29922', '#a371f7', '#39c5cf'];
 
 export class Scope {
@@ -17,6 +22,7 @@ export class Scope {
     this.periodUs = 1024; this.vrefMv = 5000; this.full = 1023;
     this.lastSeq = null; this.lastBlock = 0; this.endTick = -1;
     this.paused = false; this.pausedEnd = 0; this.dirty = true; this.lastDraw = 0;
+    this.meterOff = loadMeterOff();       // per channel, remembered across sessions
 
     windowSelect.addEventListener('change', () => this.#touch());
     rangeSelect.addEventListener('change', () => this.#touch());
@@ -195,6 +201,14 @@ export class Scope {
       item.className = 'trace';
       item.style.setProperty('--c', TRACE_COLORS[ch % TRACE_COLORS.length]);
       item.innerHTML = `<i></i>A${ch} <b data-ch="${ch}">—</b>`;
+      // V toggle: hide the live voltage for fast signals where the number just flickers.
+      const on = !this.meterOff.has(ch);
+      const v = Object.assign(document.createElement('button'), { type: 'button', className: 'meter', textContent: 'V' });
+      v.setAttribute('aria-pressed', String(on));
+      v.title = on ? `Hide A${ch}'s live voltage` : `Show A${ch}'s live voltage`;
+      item.querySelector('b').hidden = !on;
+      v.addEventListener('click', () => this.toggleMeter(ch));
+      item.append(v);
       if (this.onStop) {
         const x = Object.assign(document.createElement('button'), { type: 'button', className: 'stop', textContent: '✕',
                                                                     title: `Stop capturing A${ch}` });
@@ -206,8 +220,15 @@ export class Scope {
     this.#updateLegendValues();
   }
 
+  toggleMeter(ch) {
+    if (this.meterOff.has(ch)) this.meterOff.delete(ch); else this.meterOff.add(ch);
+    try { localStorage.setItem(METER_KEY, JSON.stringify([...this.meterOff])); } catch {}
+    this.#renderLegend();
+  }
+
   #updateLegendValues() {
     for (const b of this.legend.querySelectorAll('b[data-ch]')) {
+      if (b.hidden) continue;
       const c = this.channels.get(+b.dataset.ch);
       b.textContent = c?.latest == null ? '—' : `${this.volts(c.latest).toFixed(3)} V`;
     }

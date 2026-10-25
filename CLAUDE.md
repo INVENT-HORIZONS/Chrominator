@@ -103,6 +103,8 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Capturing pins belong to the Scope**: a pin in CAPTURE mode is greyed out in the Pins list
   (`row.kind = 'capture'`, select disabled, colour badge "Scope A<n>"). It is stopped from the ✕ on
   its legend entry (`Scope` `onStop` → `changeMode(pin, MODE.ANALOG)`) or by All pins safe.
+- Scope legend: each trace has a **V** toggle (`Scope.toggleMeter`) that hides its live voltage
+  readout; the set of hidden channels is saved in localStorage (`chrominator.scopeMeterOff`).
 - **Collapsible panels**: `initCollapsibles()` in `ui.js` turns each Buses/Pins/Scope `<h2>` into a
   `button.fold`; `section.folded` hides everything but `.sectionhead`, so header controls stay
   usable. Diagnostics and Event log are `<details>`. Fold state is saved per viewer in

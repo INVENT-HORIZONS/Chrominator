@@ -116,6 +116,10 @@ dt { color: var(--muted); } dd { margin: 0; }
 .note.small { font-size: 11px; margin-top: 4px; }
 .busrole.capture { color: var(--c); display: inline-flex; align-items: center; gap: 5px; }
 .busrole.capture::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.trace .meter { border: 1px solid var(--border); background: none; padding: 0 4px; font: 600 10px/14px Consolas, monospace;
+                border-radius: 3px; color: var(--muted); cursor: pointer; }
+.trace .meter[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.trace .meter:hover { border-color: var(--accent); }
 .trace .stop { border: none; background: none; padding: 0 2px; font-size: 11px; line-height: 1; color: var(--muted); cursor: pointer; }
 .trace .stop:hover { color: var(--err); }
 .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; background: var(--c); }
