@@ -3,6 +3,7 @@ import { MODE, MODE_NAME, CAP, pinLabel } from './protocol.js';
 import { ChrominatorLink, LINK } from './link.js';
 import { SerialTransport, choosePort, lastUsedPort, describePort } from './serial.js';
 import { Scope, TRACE_COLORS } from './scope.js';
+import { BurstPanel } from './burst.js';
 
 const $ = id => document.getElementById(id);
 const MAX_LOG = 300;
@@ -28,6 +29,16 @@ function busOwner(pin) {
   }
   return null;
 }
+
+const burst = new BurstPanel({
+  getLink: () => link,
+  log: (level, msg) => log(level, msg),
+  // A channel can burst unless its pin is driving or handed to a bus.
+  isUsable: pin => {
+    const m = link?.board?.config[pin]?.mode;
+    return m !== MODE.OUTPUT && m !== MODE.PWM && !busOwner(pin);
+  }
+});
 
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
@@ -80,6 +91,7 @@ function setState(state) {
   $('eye').classList.toggle('on', state === LINK.UP);
   $('pinsSection').classList.toggle('offline', state !== LINK.UP);
   $('busSection').classList.toggle('offline', state !== LINK.UP);
+  $('burstSection').classList.toggle('offline', state !== LINK.UP);
   $('btnConnect').textContent = state === LINK.STOPPED ? 'Connect' : 'Disconnect';
   $('btnChoose').hidden = state !== LINK.STOPPED;
   if (state === LINK.STOPPED) { $('rtt').textContent = ''; }
@@ -113,6 +125,7 @@ async function connect(forceChoose = false) {
     link.addEventListener('inputs', e => updateInputs(e.detail));
     link.addEventListener('ping', e => onPing(e.detail));
     link.addEventListener('capture', e => scope.add(e.detail));
+    link.addEventListener('burst', e => burst.onBurst(e.detail));
     try {
       await link.start();
     } catch (e) {
@@ -136,6 +149,8 @@ async function disconnect(say = true) {
   $('boardInfo').textContent = 'No board connected';
   $('pinsSection').hidden = true;
   $('busSection').hidden = true;
+  $('burstSection').hidden = true;
+  burst.disconnected();
   $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
@@ -187,6 +202,8 @@ function buildPins({ hello, caps, config }) {
     syncBusControls(id);
   }
   $('busSection').hidden = false;
+  burst.setBoard({ hello, caps });
+  $('burstSection').hidden = !hello.burstSamples;
   renderAllPins(config);
 }
 
@@ -221,6 +238,7 @@ function renderAllPins(config) {
     cfg.mode === MODE.CAPTURE && rows[pin]?.caps.adcChannel != null ? [rows[pin].caps.adcChannel] : []);
   scope.setActive(capturing);
   $('scopeSection').hidden = capturing.length === 0;
+  burst.refreshChannels();
 }
 
 function renderPin(pin, { mode, value }) {
@@ -372,7 +390,7 @@ function saveFold(id, folded) {
 }
 function initCollapsibles() {
   const folds = loadFolds();
-  for (const sec of document.querySelectorAll('section.buses, section.pins, section.scope')) {
+  for (const sec of document.querySelectorAll('section.buses, section.pins, section.scope, section.burst')) {
     const h2 = sec.querySelector('.sectionhead h2');
     const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'fold' });
     btn.title = 'Show or hide this panel';

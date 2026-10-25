@@ -55,6 +55,14 @@ across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
+**Burst.** For fast events, the Burst panel samples one analog pin as fast as the Uno can,
+at up to 76.9k samples/s, into the board's memory, then shows it. Pick the channel and rate
+(76.9k or 38.5k samples/s at 8 bits for 13–27 ms, or 19.2k or 9.6k at full 10 bits for
+27–53 ms), a trigger (rising or falling through a voltage, or none), how much to keep from before
+the trigger, and a timeout. **Single** arms it once; tick **Repeat** to re-arm after each capture,
+**Stop** to end. The plot puts the trigger at 0 ms (dashed lines mark the trigger and level),
+lists min/max/mean, and **save CSV** exports it. Streaming Capture pauses during a burst.
+
 **Buses.** Above the pins, switch on **I²C** (SDA A4, SCL A5) or **SPI** (SCK D13, MOSI D11,
 MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
 labelled with their role until the bus is switched off. The clock, mode and bit-order settings
@@ -81,4 +89,6 @@ test/run.sh          # needs g++ and Node 20+
 This compiles the real firmware against a simulated Arduino (`test/sim`) and runs it against the
 extension's `protocol.js` and `link.js`: connection, every command and error status, the
 heartbeat, corrupted bytes, link loss and recovery, the board's failsafe, a board reboot, and
-capture (block alignment between channels, all six channels streaming at once, stopping).
+capture (block alignment between channels, all six channels streaming at once, stopping), and
+burst (sample rates from run lengths, rising/falling triggers with pre-trigger, timeout, cancel,
+rejection on an output pin, Capture pausing and resuming with a correctly sized gap).
