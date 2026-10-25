@@ -2,12 +2,19 @@
 import { MODE, MODE_NAME, CAP, pinLabel } from './protocol.js';
 import { ChrominatorLink, LINK } from './link.js';
 import { SerialTransport, choosePort, lastUsedPort, describePort } from './serial.js';
+import { Scope, TRACE_COLORS } from './scope.js';
 
 const $ = id => document.getElementById(id);
 const MAX_LOG = 300;
 
 let transport = null, link = null, port = null, busy = false;
 let rows = [];                     // per pin: { el, select, ctl, kind, refs, lastWrite }
+
+const scope = new Scope({
+  canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
+  windowSelect: $('scopeWindow'), rangeSelect: $('scopeRange'),
+  runButton: $('scopeRun'), clearButton: $('scopeClear'), saveButton: $('scopeSave')
+});
 
 // ---------------- log & stats ----------------
 function log(level, message) {
@@ -26,6 +33,8 @@ function renderStats() {
   const rowsOut = s ? [
     ['Frames sent', s.tx], ['Frames received', s.rx], ['CRC errors', p.crcErrors],
     ['Junk bytes', p.junkBytes], ['Timeouts', s.timeouts], ['Retries', s.retries],
+    ['Capture blocks', s.captureBlocks], ['Capture gaps', s.captureGaps],
+    ['Board overruns / dropped', `${s.captureOverruns} / ${s.captureDropped}`],
     ['Heartbeat RTT', s.rttMs == null ? '—' : `${s.rttMs.toFixed(1)} ms`],
     ['Board uptime', s.uptimeMs == null ? '—' : formatUptime(s.uptimeMs)]
   ] : [['Status', 'Not connected']];
@@ -79,6 +88,7 @@ async function connect(forceChoose = false) {
     link.addEventListener('config', e => renderAllPins(e.detail));
     link.addEventListener('inputs', e => updateInputs(e.detail));
     link.addEventListener('ping', e => onPing(e.detail));
+    link.addEventListener('capture', e => scope.add(e.detail));
     try {
       await link.start();
     } catch (e) {
@@ -101,6 +111,7 @@ async function disconnect(say = true) {
   setState(LINK.STOPPED);
   $('boardInfo').textContent = 'No board connected';
   $('pinsSection').hidden = true;
+  $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
 }
@@ -121,6 +132,7 @@ function onPing({ rttMs }) {
 // ---------------- pin table ----------------
 function buildPins({ hello, caps, config }) {
   $('boardInfo').textContent = `${hello.boardName} · firmware ${hello.fwMajor}.${hello.fwMinor} · ${hello.adcBits}-bit ADC`;
+  scope.setBoard(hello);
   const tpl = $('pinRow');
   rows = caps.map((c, pin) => {
     const el = tpl.content.firstElementChild.cloneNode(true);
@@ -136,7 +148,7 @@ function buildPins({ hello, caps, config }) {
       ctl.innerHTML = '<span class="note">Used by the USB link</span>';
     } else {
       const allowed = [[MODE.INPUT, CAP.DIN], [MODE.PULLUP, CAP.PULLUP], [MODE.OUTPUT, CAP.DOUT],
-                       [MODE.PWM, CAP.PWM], [MODE.ANALOG, CAP.ADC]];
+                       [MODE.PWM, CAP.PWM], [MODE.ANALOG, CAP.ADC], [MODE.CAPTURE, CAP.CAPTURE]];
       for (const [m, need] of allowed) if (c.caps & need) select.add(new Option(MODE_NAME[m], m));
       select.addEventListener('change', () => changeMode(pin, +select.value));
     }
@@ -149,6 +161,11 @@ function buildPins({ hello, caps, config }) {
 
 function renderAllPins(config) {
   config.forEach((cfg, pin) => { if (rows[pin] && !(rows[pin].caps.caps & CAP.RESERVED)) renderPin(pin, cfg); });
+  // The scope shows every ADC channel in Capture mode, overlaid.
+  const capturing = config.flatMap((cfg, pin) =>
+    cfg.mode === MODE.CAPTURE && rows[pin]?.caps.adcChannel != null ? [rows[pin].caps.adcChannel] : []);
+  scope.setActive(capturing);
+  $('scopeSection').hidden = capturing.length === 0;
 }
 
 function renderPin(pin, { mode, value }) {
@@ -177,8 +194,14 @@ function renderPin(pin, { mode, value }) {
     r.addEventListener('input', () => { num.textContent = pwmText(+r.value); pwmSend(pin, +r.value); });
     row.refs.range = r; row.refs.num = num;
     ctl.append(r, num);
-  } else if (mode === MODE.ANALOG) {
+  } else if (mode === MODE.ANALOG || mode === MODE.CAPTURE) {
     const bar = el('span', 'bar'); bar.append(document.createElement('i'));
+    if (mode === MODE.CAPTURE) {
+      const color = TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length];
+      const sw = el('span', 'swatch'); sw.style.setProperty('--c', color); sw.title = 'Trace colour on the scope';
+      bar.firstChild.style.background = color;
+      ctl.append(sw);
+    }
     row.refs.bar = bar.firstChild;
     row.refs.volts = el('span', 'volts', '—');
     row.refs.raw = el('span', 'raw', '');
@@ -213,7 +236,7 @@ function updateInputs({ levels, adc }) {
       // Read-back check: an output that reads the opposite level is probably shorted or overloaded.
       const bad = now - row.lastWrite > 300 && high !== (cfg.value ? 1 : 0);
       row.refs.mismatch.textContent = bad ? `reads ${high ? 'HIGH' : 'LOW'}!` : '';
-    } else if (cfg.mode === MODE.ANALOG && row.caps.adcChannel != null) {
+    } else if ((cfg.mode === MODE.ANALOG || cfg.mode === MODE.CAPTURE) && row.caps.adcChannel != null) {
       const raw = adc[row.caps.adcChannel];
       if (raw == null) return;
       row.refs.volts.textContent = `${(raw * vrefMv / full / 1000).toFixed(3)} V`;
@@ -225,6 +248,7 @@ function updateInputs({ levels, adc }) {
 
 async function changeMode(pin, mode) {
   try {
+    if (mode === MODE.CAPTURE) scope.clearChannel(rows[pin].caps.adcChannel);   // start a fresh trace
     await link.setMode(pin, mode);
   } catch (e) {
     log('error', `${pinLabel(pin, rows[pin].caps)}: could not set ${MODE_NAME[mode]}: ${e.message}`);

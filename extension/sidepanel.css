@@ -2,6 +2,7 @@
   --bg: #eef0f3; --panel: #ffffff; --border: #cfd4db; --text: #16191d; --muted: #66707c;
   --accent: #0067c0; --accent-text: #fff; --ok: #1a7f37; --warn: #b26a00; --err: #c62828;
   --high: #1a7f37; --low: #9aa3ad; --eye: #e0241b; --track: #dde2e8;
+  --scope-bg: #fbfcfd; --scope-grid: #e1e5ea; --scope-text: #7a8490;
   --chrome: linear-gradient(180deg, #5b636d 0%, #c9d0d8 45%, #6d7680 55%, #3a4048 100%);
 }
 @media (prefers-color-scheme: dark) {
@@ -9,6 +10,7 @@
     --bg: #15181c; --panel: #1f2328; --border: #343a42; --text: #e4e8ec; --muted: #8e98a3;
     --accent: #4ca0ff; --accent-text: #001428; --ok: #3fb950; --warn: #d29922; --err: #ff6b6b;
     --high: #3fb950; --low: #59626c; --eye: #ff3b30; --track: #2c3238;
+    --scope-bg: #0d1013; --scope-grid: #252b31; --scope-text: #7d8791;
     --chrome: linear-gradient(180deg, #f4f7fa 0%, #9aa4ae 45%, #e8edf1 55%, #7d8791 100%);
   }
 }
@@ -97,3 +99,19 @@ dt { color: var(--muted); } dd { margin: 0; }
 #log li { padding: 1px 0; }
 #log time { color: var(--muted); margin-right: 6px; }
 #log .warn { color: var(--warn); } #log .error { color: var(--err); }
+
+/* Scope */
+.scope { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 10px; }
+.scopectl { display: flex; gap: 6px; align-items: center; }
+.scopectl select { font: inherit; padding: 2px 4px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; }
+.scopectl button { padding: 2px 10px; min-width: 58px; }
+.scopectl button.paused { background: var(--warn); color: #fff; border-color: var(--warn); }
+#scopeCanvas { display: block; width: 100%; height: 220px; border-radius: 4px; border: 1px solid var(--border); }
+.scopefoot { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-top: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 12px Consolas, monospace; }
+.trace { display: inline-flex; align-items: center; gap: 5px; }
+.trace i { width: 12px; height: 3px; border-radius: 2px; background: var(--c); }
+.trace b { font-weight: 600; }
+.scopebtns { display: flex; gap: 10px; flex: none; }
+.note.small { font-size: 11px; margin-top: 4px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; background: var(--c); }

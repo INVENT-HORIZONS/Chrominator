@@ -1,8 +1,11 @@
-# Chrominator serial protocol — version 1
+# Chrominator serial protocol — version 2
+
+*Version 2 adds analog Capture (mode 5, EVT_CAPTURE), the capture period in HELLO and capture
+counters in PING. A version-1 board is rejected by the extension with a message to re-flash.*
 
 Binary request/reply protocol between the Chrominator extension (host) and the board firmware.
-The host is always the one that asks; the board only speaks unprompted for two events
-(boot and failsafe).
+The host is always the one that asks; the board only speaks unprompted for events
+(boot, failsafe and capture data).
 
 ## Physical link
 
@@ -69,6 +72,7 @@ Pins are numbered as the board numbers them (Uno: D0–D13 = 0–13, A0–A5 = 1
 | 2 | OUTPUT | 0 = LOW, 1 = HIGH |
 | 3 | PWM | duty 0–255 |
 | 4 | ANALOG (ADC input) | — |
+| 5 | CAPTURE (ADC input, streamed — see *Capture*) | — |
 
 **Capability flags** (one byte per pin, from GET_CAPS)
 
@@ -79,6 +83,7 @@ Pins are numbered as the board numbers them (Uno: D0–D13 = 0–13, A0–A5 = 1
 | 2 | PWM |
 | 3 | ADC |
 | 4 | PULLUP — has an internal pull-up |
+| 5 | CAPTURE — can stream samples in CAPTURE mode |
 | 7 | RESERVED — used by the board, not controllable |
 
 The **safe state** is every non-reserved pin in INPUT mode with its output latch LOW
@@ -89,8 +94,8 @@ on RESET_PINS or failsafe.
 
 | CMD | Name | Request DATA | Reply DATA after status |
 |---|---|---|---|
-| 0x01 | PING | — | flags u8, uptime_ms u32 |
-| 0x02 | HELLO | — | proto u8, fw_major u8, fw_minor u8, board_id u8, num_pins u8, adc_bits u8, vref_mV u16, link_timeout_ms u16, board name (ASCII, rest of frame) |
+| 0x01 | PING | — | flags u8, uptime_ms u32, capture_overruns u16, capture_dropped u16 |
+| 0x02 | HELLO | — | proto u8, fw_major u8, fw_minor u8, board_id u8, num_pins u8, adc_bits u8, vref_mV u16, link_timeout_ms u16, capture_period_us u16 (0 = no capture), board name (ASCII, rest of frame) |
 | 0x03 | GET_CAPS | — | num_pins u8, then per pin: flags u8, adc_channel u8 (0xFF = none) |
 | 0x04 | GET_CONFIG | — | num_pins u8, then per pin: mode u8, value u8 |
 | 0x10 | SET_MODE | pin u8, mode u8 | — |
@@ -106,7 +111,9 @@ Notes:
 - **READ_ALL** reports the actual pin level for every pin, read from the port register so that
   reading a PWM pin does not stop its PWM. For a PWM pin the level is whatever the waveform is at
   that instant. ADC readings are taken for every ADC channel regardless of mode; the host only
-  shows them for pins in ANALOG mode.
+  shows them for pins in ANALOG or CAPTURE mode. While any pin is in CAPTURE mode, the readings
+  come from the capture scan (no `analogRead()`), so channels in neither ANALOG nor CAPTURE mode
+  report a stale value.
 - **GET_CONFIG** also clears the PING `FAILSAFE` flag.
 - All commands are idempotent, so the host may safely retry any of them.
 
@@ -116,9 +123,40 @@ Notes:
 |---|---|---|
 | 0x60 | EVT_BOOT | proto u8, fw_major u8, fw_minor u8, board_id u8 |
 | 0x61 | EVT_FAILSAFE | — |
+| 0x62 | EVT_CAPTURE | block u16, adc_channel u8, count u8, bits u8, packed samples |
 
 EVT_BOOT is sent once when the firmware starts. EVT_FAILSAFE is sent when the link watchdog
 trips (the host may not receive it, which is why the PING flag also records it).
+
+## Capture
+
+Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on the board.
+
+- **Sample clock:** one tick every `capture_period_us` (from HELLO). Uno R3: **1024 µs
+  (976.5625 samples/s)**, from a Timer0 compare-match interrupt. Timer0 already drives `millis()`
+  and the PWM on D5/D6, so no timer or PWM pin is given up. Changing the PWM duty on D6 moves the
+  compare point and can shift one sample by up to one period.
+- **Scan:** at each tick the ADC converts every channel in CAPTURE *or* ANALOG mode, one after
+  another, driven by the ADC-complete interrupt (about 104 µs per channel). All CAPTURE channels
+  are therefore sampled within the same tick and line up sample-for-sample.
+- **Blocks:** samples are packed into blocks of **32 per channel**. A finished block is sent as
+  one EVT_CAPTURE frame per CAPTURE channel, all carrying the same block number. A block covers
+  32 ticks (32.768 ms on the Uno).
+- **Packing:** sample *k* occupies bits `k*bits … k*bits+bits-1` of the payload, least significant
+  bit first (little-endian bit stream). With 10-bit samples, 32 samples = 40 bytes; the frame's
+  DATA is 45 bytes.
+- **Timing:** sample *k* of block *b* was taken at tick `b*32 + k`. Block numbers are 16-bit and
+  wrap; the host unwraps them. A missing number is a gap. A large backwards jump means the board
+  restarted.
+- **Queue:** the board holds up to 4 blocks (3 finished + 1 filling, 960 bytes of SRAM). If the
+  host cannot keep up, the oldest unsent data is overwritten, `capture_dropped` (PING) counts it
+  and the block number still advances so the host sees the gap. `capture_overruns` counts ticks
+  skipped because the previous scan had not finished.
+- **Reconfiguration:** any change of a pin into or out of ANALOG/CAPTURE restarts the sampler;
+  the partly filled block and any queued blocks are discarded (a short gap on the other channels).
+  Failsafe and RESET_PINS stop capture.
+- **Bandwidth:** each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s. All six channels use about
+  9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL.
 
 ## Heartbeat and disconnection detection
 

@@ -9,12 +9,18 @@
 #define CAP_PWM       0x04
 #define CAP_ADC       0x08
 #define CAP_PULLUP    0x10
+#define CAP_CAPTURE   0x20
 #define CAP_RESERVED  0x80
 
 #define CAP_GPIO   (CAP_DIN | CAP_DOUT | CAP_PULLUP)
 #define CAP_GPWM   (CAP_GPIO | CAP_PWM)
 #define CAP_GADC   (CAP_GPIO | CAP_ADC)
 #define NO_ADC     0xFF
+
+// Capture engine implementations (capture.h)
+#define CAPTURE_NONE  0
+#define CAPTURE_AVR   1
+#define CAPTURE_SIM   2
 
 #if defined(ARDUINO_AVR_UNO) || defined(CHROMINATOR_SIM)
   // ---------------- Arduino Uno R3 (ATmega328P) ----------------
@@ -25,6 +31,13 @@
   #define ADC_BITS        10
   #define VREF_MV         5000
   #define HAS_AVR_PORTS   1       // read pin levels from port registers (does not disturb PWM)
+  #define CAP_GADCC       (CAP_GADC | CAP_CAPTURE)
+  #define CAPTURE_PERIOD_US 1024  // Timer0 compare: 16 MHz / 64 / 256 = 976.5625 Hz
+  #if defined(CHROMINATOR_SIM)
+    #define CAPTURE_IMPL  CAPTURE_SIM
+  #else
+    #define CAPTURE_IMPL  CAPTURE_AVR
+  #endif
 
   static const uint8_t PIN_CAPS[NUM_PINS] = {
     CAP_RESERVED, CAP_RESERVED,          // D0 RX, D1 TX: used by USB serial
@@ -32,8 +45,8 @@
     CAP_GPWM, CAP_GPWM, CAP_GPIO,        // D5~, D6~, D7
     CAP_GPIO, CAP_GPWM, CAP_GPWM,        // D8, D9~, D10~
     CAP_GPWM, CAP_GPIO, CAP_GPIO,        // D11~, D12, D13 (LED)
-    CAP_GADC, CAP_GADC, CAP_GADC,        // A0, A1, A2
-    CAP_GADC, CAP_GADC, CAP_GADC         // A3, A4 (SDA), A5 (SCL)
+    CAP_GADCC, CAP_GADCC, CAP_GADCC,     // A0, A1, A2
+    CAP_GADCC, CAP_GADCC, CAP_GADCC      // A3, A4 (SDA), A5 (SCL)
   };
   static const uint8_t PIN_ADC[NUM_PINS] = {
     NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC,
@@ -60,6 +73,8 @@
   #define ADC_BITS        14
   #define VREF_MV         5000
   #define HAS_AVR_PORTS   0
+  #define CAPTURE_IMPL    CAPTURE_NONE   // TODO: capture on the R4 (AGT timer + ADC interrupt)
+  #define CAPTURE_PERIOD_US 0
   // On the R4, Serial is native USB, so D0/D1 are free (Serial1). Kept reserved for now
   // so the pin map matches the R3; unreserve once tested.
   static const uint8_t PIN_CAPS[NUM_PINS] = {

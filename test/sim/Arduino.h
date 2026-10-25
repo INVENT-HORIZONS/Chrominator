@@ -23,6 +23,8 @@ int digitalRead(uint8_t pin);
 int analogRead(uint8_t pin);
 void analogWrite(uint8_t pin, int val);
 unsigned long millis();
+unsigned long micros();
+extern unsigned long simAdcClockUs;   // when non-zero, analogRead() samples the signal at this time
 
 // AVR port-register access used by readLevel(): one "port" per pin, bit 0 = level.
 volatile uint8_t *simPinRegister(uint8_t pin);

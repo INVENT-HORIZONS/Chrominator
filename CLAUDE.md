@@ -21,6 +21,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 |---|---|
 | `docs/PROTOCOL.md` | **The protocol spec. The source of truth** for frames, commands, statuses, timings. |
 | `firmware/Chrominator/Chrominator.ino` | Firmware: frame parser, command handlers, link watchdog/failsafe. |
+| `firmware/Chrominator/capture.h` | Capture engine: Timer0-compare tick, interrupt-driven ADC scan, 10-bit packing, block queue; AVR and simulator back ends. |
 | `firmware/Chrominator/board_config.h` | Per-board pin tables and capability flags; the only file a board port should need. |
 | `extension/manifest.json` | MV3, `sidePanel` permission, Chrome 116+. Bump `version` on changes. |
 | `extension/background.js` | Only sets `openPanelOnActionClick`. |
@@ -28,6 +29,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/protocol.js` | Constants, CRC-8, `encodeFrame`, `FrameParser`, reply decoders. No browser APIs. |
 | `extension/js/link.js` | `ChrominatorLink`: request/reply by SEQ, timeouts, retries, heartbeat, LOST detection, resync. No DOM. |
 | `extension/js/serial.js` | Web Serial transport (`SerialTransport`) and port selection (`choosePort`, `lastUsedPort`). |
+| `extension/js/scope.js` | `Scope`: per-channel sample store on the board's tick clock (block unwrap), canvas drawing, legend, CSV export. |
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `test/sim/` | Fake Arduino core (`Arduino.h`, `avr/wdt.h`, `sim_main.cpp`) to run the firmware on a PC. |
@@ -49,6 +51,9 @@ Web Serial patterns and the side-panel port-picker workaround used here.
   user actions retry twice. All commands are idempotent.
 - Board fails safe (all pins INPUT, latch LOW) after 1500 ms without a valid frame, sets the
   FAILSAFE flag and sends EVT_FAILSAFE. Hardware watchdog ~1 s.
+- **Capture** (protocol v2): ADC pins in mode 5 are sampled every 1024 µs (Uno) and streamed as
+  EVT_CAPTURE frames, one per channel per 32-sample block, 10-bit packed LSB-first; block number
+  u16 gives time. Up to 4 blocks are queued on the board. See the *Capture* section of PROTOCOL.md.
 - **The board is the source of truth for pin state.** After link recovery, a FAILSAFE/NEEDS_HELLO
   ping flag, or EVT_BOOT, the host re-reads config (and HELLO + caps after a reboot) and redraws.
 
@@ -72,6 +77,14 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - The Uno R3 auto-resets when the port opens; the host sends HELLO every ~400 ms for up to 5 s
   and ignores bootloader junk thanks to framing/CRC.
 - D0/D1 are RESERVED on the Uno (USB serial).
+- **Capture must not use a dedicated timer on the Uno**: all three are taken (millis + PWM).
+  It piggybacks on Timer0's compare-A interrupt (976.5625 Hz), so the period is 1024 µs, not
+  1000 µs. The host must use `hello.capturePeriodUs`, never assume 1 ms.
+- **Never call `analogRead()` while capture runs**: the ADC is owned by the interrupt-driven scan.
+  READ_ALL uses `capAdcValue()` (scan cache). The scan includes ANALOG channels for that reason.
+- **No blocking work in the capture ISRs**; keep the UART serviceable (RX overruns at 115200
+  if interrupts are held off for more than ~170 µs).
+- Firmware RAM is ~69% on the Uno (capture ring is 960 B). Keep it under the IDE's 75% warning.
 - `protocol.js` and `link.js` must stay free of DOM and `chrome.*` APIs so they run in Node tests.
 
 ## Code patterns
@@ -91,7 +104,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 
 ## Building and testing
 
-- Firmware for the Uno: Arduino IDE, board "Arduino Uno". Current size ≈ 4.7 KB flash, 415 B RAM.
+- Firmware for the Uno: Arduino IDE, board "Arduino Uno". Current size ≈ 5.6 KB flash, 1415 B RAM.
+- The simulator runs capture ticks from `loop()` using `micros()` and samples its fake signal at
+  each tick's scheduled time (`simAdcClockUs`), so tests stay deterministic on a busy PC.
 - `test/run.sh` builds the firmware with `-DCHROMINATOR_SIM` against `test/sim` and runs
   `test/link.test.mjs`. All tests must pass before committing protocol/firmware/link changes.
 - The UI can be exercised in Playwright's Chromium by loading the extension unpacked

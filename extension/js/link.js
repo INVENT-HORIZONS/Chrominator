@@ -6,7 +6,7 @@
 
 import {
   CMD, REPLY, FLAG, STATUS_TEXT, encodeFrame, FrameParser,
-  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll
+  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll, decodeCapture, PROTO_VERSION
 } from './protocol.js';
 
 export const LINK = Object.freeze({ CONNECTING: 'connecting', UP: 'up', LOST: 'lost', STOPPED: 'stopped' });
@@ -42,7 +42,9 @@ export class ChrominatorLink extends EventTarget {
     this.state = LINK.STOPPED;
     this.lastRx = 0;
     this.board = null;             // { hello, caps[], config[] }
-    this.stats = { tx: 0, rx: 0, timeouts: 0, retries: 0, rttMs: null, uptimeMs: null };
+    this.stats = { tx: 0, rx: 0, timeouts: 0, retries: 0, rttMs: null, uptimeMs: null,
+                   captureBlocks: 0, captureGaps: 0, captureOverruns: 0, captureDropped: 0 };
+    this.capLastBlock = new Map();  // channel -> last block number seen (to count gaps)
     this.timers = [];
     this.resyncing = null;
     this.pollBusy = false;
@@ -61,6 +63,10 @@ export class ChrominatorLink extends EventTarget {
     }
     if (this.state !== LINK.CONNECTING) return false;               // stopped meanwhile
     if (!hello) { this.stop(); throw new Error('No reply from the board. Is the Chrominator firmware loaded?'); }
+    if (hello.proto !== PROTO_VERSION) {
+      this.stop();
+      throw new Error(`The board runs protocol v${hello.proto} but this extension needs v${PROTO_VERSION}. Re-upload the firmware from this version of Chrominator.`);
+    }
     await this.#loadBoard(hello);
     this.lastRx = Date.now();
     this.#setState(LINK.UP);
@@ -79,6 +85,8 @@ export class ChrominatorLink extends EventTarget {
 
   async setMode(pin, mode) {
     await this.request(CMD.SET_MODE, [pin, mode], this.opt.retries);
+    const ch = this.board.caps[pin]?.adcChannel;
+    if (ch != null) this.capLastBlock.delete(ch);     // capture (re)starts: no gap to count
     this.board.config[pin] = { mode, value: 0 };
     this.#emit('config', this.board.config);
   }
@@ -143,7 +151,17 @@ export class ChrominatorLink extends EventTarget {
   }
 
   #onEvent(cmd, data) {
+    if (cmd === CMD.EVT_CAPTURE) {
+      const c = decodeCapture(data);
+      this.stats.captureBlocks++;
+      const last = this.capLastBlock.get(c.channel);
+      if (last != null && ((c.block - last) & 0xFFFF) > 1 && ((c.block - last) & 0xFFFF) < 0x8000) this.stats.captureGaps++;
+      this.capLastBlock.set(c.channel, c.block);
+      this.#emit('capture', c);
+      return;
+    }
     if (cmd === CMD.EVT_BOOT) {
+      this.capLastBlock.clear();
       this.#log('warn', 'Board reset (boot message received).');
       if (this.state === LINK.UP) this.#resync(true);
     } else if (cmd === CMD.EVT_FAILSAFE) {
@@ -185,6 +203,8 @@ export class ChrominatorLink extends EventTarget {
     try {
       const ping = decodePing(await this.#once(CMD.PING, []));
       this.stats.uptimeMs = ping.uptimeMs;
+      this.stats.captureOverruns = ping.captureOverruns;
+      this.stats.captureDropped = ping.captureDropped;
       this.#emit('ping', { rttMs: this.stats.rttMs, uptimeMs: ping.uptimeMs, flags: ping.flags });
       if (ping.flags & FLAG.NEEDS_HELLO) { this.#log('warn', 'Board restarted; reloading its state.'); this.#resync(true); }
       else if (ping.flags & FLAG.FAILSAFE) this.#resync(false);

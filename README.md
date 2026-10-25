@@ -44,6 +44,16 @@ link the whole time, and the board drops every pin to a safe state if the browse
 | Output | On/off switch; shows `reads LOW!` if the pin doesn't follow (short or overload) |
 | PWM (pins marked ~) | Slider, 0–255 |
 | Analog (A0–A5) | Voltage (5 V reference), raw reading and a bar |
+| Capture (A0–A5) | Same as Analog, plus the pin is sampled ~1000 times a second and drawn on the **Scope** |
+
+**Scope.** Put one or more analog pins in **Capture** and the Scope appears below the pins, with
+every capturing channel overlaid in its own colour (shown next to the pin). The board samples
+all capturing pins at the same instant, 976.6 times a second (every 1.024 ms), and sends them in
+32-sample blocks; the time axis comes from the board's clock, not the PC's. Pick 1 s to 2 min
+across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze the picture
+(capture carries on underneath), and **save CSV** to export everything held (about the last
+2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
+it's disconnected, not as a fast oscilloscope.
 
 **All pins safe** puts every pin back to a plain input. D0/D1 carry the USB serial link and
 can't be used.
@@ -62,4 +72,5 @@ test/run.sh          # needs g++ and Node 20+
 
 This compiles the real firmware against a simulated Arduino (`test/sim`) and runs it against the
 extension's `protocol.js` and `link.js`: connection, every command and error status, the
-heartbeat, corrupted bytes, link loss and recovery, the board's failsafe, and a board reboot.
+heartbeat, corrupted bytes, link loss and recovery, the board's failsafe, a board reboot, and
+capture (block alignment between channels, all six channels streaming at once, stopping).

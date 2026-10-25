@@ -25,7 +25,16 @@ void pinMode(uint8_t p, uint8_t m) { mode_[p] = m; fprintf(stderr, "PINMODE %u %
 void digitalWrite(uint8_t p, uint8_t v) { latch[p] = v; pwm[p] = 0; fprintf(stderr, "WRITE %u %u\n", p, v); }
 int digitalRead(uint8_t p) { updateReg(p); return reg[p]; }
 void analogWrite(uint8_t p, int v) { pwm[p] = (uint8_t)v; latch[p] = v ? 1 : 0; fprintf(stderr, "PWM %u %d\n", p, v); }
-int analogRead(uint8_t p) { return (int)((millis() / 10 + (p - 14) * 100) % 1024); }
+// Channel n: a ramp of 1 count per ms, offset by n*100 (so capture samples are easy to verify).
+unsigned long simAdcClockUs = 0;
+int analogRead(uint8_t p) {
+  unsigned long ms = simAdcClockUs ? simAdcClockUs / 1000 : millis();
+  return (int)((ms + (p - 14) * 100) % 1024);
+}
+unsigned long micros() {
+  struct timeval t; gettimeofday(&t, 0);
+  return (unsigned long)((t.tv_sec - t0.tv_sec) * 1000000UL + (t.tv_usec - t0.tv_usec));
+}
 unsigned long millis() {
   struct timeval t; gettimeofday(&t, 0);
   return (t.tv_sec - t0.tv_sec) * 1000UL + (t.tv_usec - t0.tv_usec) / 1000;

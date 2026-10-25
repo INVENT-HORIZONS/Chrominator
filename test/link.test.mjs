@@ -2,7 +2,7 @@
 // extension's real protocol.js and link.js. Run with test/run.sh.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { crc8, encodeFrame, FrameParser, CMD, MODE } from '../extension/js/protocol.js';
+import { crc8, encodeFrame, FrameParser, CMD, MODE, CAP, decodeCapture } from '../extension/js/protocol.js';
 import { ChrominatorLink, LINK, ProtocolError } from '../extension/js/link.js';
 
 const SIM = process.argv[2];
@@ -47,6 +47,15 @@ await test('parser: junk, good frame, bad CRC, split frame', () => {
   assert.equal(got.length, 2);
   assert.equal(got[0].seq, 7); assert.deepEqual([...got[0].data], [0, 1, 2]);
   assert.equal(p.stats.crcErrors, 1);
+});
+
+await test('capture block unpacking (10-bit, LSB-first)', () => {
+  const vals = Array.from({ length: 32 }, (_, k) => (k * 97 + 5) & 0x3FF);
+  const packed = new Uint8Array(40);
+  vals.forEach((v, k) => { const bit = k * 10, w = v << (bit & 7); packed[bit >> 3] |= w & 0xFF; packed[(bit >> 3) + 1] |= w >> 8; });
+  const c = decodeCapture(Uint8Array.from([0x34, 0x12, 3, 32, 10, ...packed]));
+  assert.equal(c.block, 0x1234); assert.equal(c.channel, 3);
+  assert.deepEqual([...c.samples], vals);
 });
 
 console.log('Firmware + link tests');
@@ -162,6 +171,66 @@ await test('safe-state button resets every pin', async () => {
   await link.setMode(5, MODE.PWM);
   await link.resetPins();
   assert.ok(link.board.config.every(c => c.mode === MODE.INPUT));
+});
+
+await sleep(600);                                        // let earlier tests' in-flight pings settle
+const timeoutsBeforeCapture = link.stats.timeouts;
+await test('capture: A0 and A2 stream aligned 32-sample blocks at 1.024 ms', async () => {
+  assert.equal(link.board.hello.capturePeriodUs, 1024);
+  assert.ok(link.board.caps[14].caps & CAP.CAPTURE);
+  const got = [];
+  const onCap = e => got.push(e.detail);
+  link.addEventListener('capture', onCap);
+  await link.setMode(14, MODE.CAPTURE);
+  await link.setMode(16, MODE.CAPTURE);
+  await sleep(600);
+  link.removeEventListener('capture', onCap);
+  const a0 = got.filter(c => c.channel === 0), a2 = got.filter(c => c.channel === 2);
+  assert.ok(a0.length >= 12, `A0 blocks: ${a0.length}`);           // ~18 expected in 600 ms
+  for (let i = 1; i < a0.length; i++) assert.equal((a0[i].block - a0[i - 1].block) & 0xFFFF, 1, 'consecutive blocks');
+  // Sim signal: channel n = (ms + 100n) mod 1024, so each sample rises ~1 count per tick...
+  for (const c of a0) for (let k = 1; k < 32; k++) {
+    const d = (c.samples[k] - c.samples[k - 1] + 1024) % 1024;
+    assert.ok(d <= 2, `step ${d}`);
+  }
+  // ...and A2 sampled at the same instants reads 200 counts higher than A0.
+  const byBlock = new Map(a2.map(c => [c.block, c]));
+  let compared = 0;
+  for (const c of a0) {
+    const m = byBlock.get(c.block); if (!m) continue;
+    for (let k = 0; k < 32; k++) assert.ok([199, 200, 201].includes((m.samples[k] - c.samples[k] + 1024) % 1024));
+    compared++;
+  }
+  assert.ok(compared >= 10, `aligned blocks compared: ${compared}`);
+  assert.equal(link.stats.captureGaps, 0);
+});
+
+await test('capture: READ_ALL still reports live ADC values, link stays healthy', async () => {
+  const r = await nextInputs();
+  assert.ok(r.adc[0] < 1024 && r.adc[2] < 1024);
+  assert.ok([198, 199, 200, 201, 202].includes((r.adc[2] - r.adc[0] + 1024) % 1024), `A2-A0 ${r.adc[2] - r.adc[0]}`);
+  assert.equal(link.state, LINK.UP);
+  assert.equal(link.stats.timeouts, timeoutsBeforeCapture, 'no timeouts while streaming');
+});
+
+await test('capture: all six channels at once fit the link', async () => {
+  for (let p = 14; p < 20; p++) await link.setMode(p, MODE.CAPTURE);
+  const blocks = link.stats.captureBlocks, t0 = performance.now();
+  await sleep(1000);
+  const perSec = (link.stats.captureBlocks - blocks) / ((performance.now() - t0) / 1000);
+  assert.ok(perSec > 6 * 28, `blocks/s ${perSec.toFixed(1)}`);    // 6 ch x 30.5 blocks/s nominal
+  assert.equal(link.stats.timeouts, timeoutsBeforeCapture, 'no timeouts with all six streaming');
+  const ping = await link.request(CMD.PING);
+  assert.equal(ping[8] | (ping[9] << 8), 0, 'board dropped no blocks');
+  assert.equal(link.stats.captureGaps, 0);
+});
+
+await test('capture stops when pins leave capture mode', async () => {
+  await link.resetPins();
+  await sleep(100);
+  const n = link.stats.captureBlocks;
+  await sleep(300);
+  assert.equal(link.stats.captureBlocks, n);
 });
 
 link.stop();

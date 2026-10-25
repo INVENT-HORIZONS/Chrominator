@@ -32,6 +32,32 @@
   <div id="pinList" class="pinlist"></div>
 </section>
 
+<section class="scope" id="scopeSection" hidden>
+  <div class="sectionhead">
+    <h2>Scope</h2>
+    <div class="scopectl">
+      <select id="scopeWindow" title="Time across the screen">
+        <option value="1">1 s</option><option value="2">2 s</option><option value="5">5 s</option>
+        <option value="10" selected>10 s</option><option value="30">30 s</option>
+        <option value="60">60 s</option><option value="120">2 min</option>
+      </select>
+      <select id="scopeRange" title="Vertical scale">
+        <option value="full">0–5 V</option><option value="auto">Auto</option>
+      </select>
+      <button id="scopeRun">Pause</button>
+    </div>
+  </div>
+  <canvas id="scopeCanvas"></canvas>
+  <div class="scopefoot">
+    <div id="scopeLegend" class="legend"></div>
+    <div class="scopebtns">
+      <button id="scopeClear" class="link small">clear</button>
+      <button id="scopeSave" class="link small">save CSV</button>
+    </div>
+  </div>
+  <div class="note small" id="scopeRate"></div>
+</section>
+
 <details class="diag" id="diag">
   <summary>Diagnostics</summary>
   <dl id="stats"></dl>
