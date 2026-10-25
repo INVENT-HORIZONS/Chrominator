@@ -17,9 +17,6 @@
 #define A4 18
 #define A5 19
 
-#define PROGMEM
-#define pgm_read_byte(p) (*(const uint8_t *)(p))
-
 void pinMode(uint8_t pin, uint8_t mode);
 void digitalWrite(uint8_t pin, uint8_t val);
 int digitalRead(uint8_t pin);

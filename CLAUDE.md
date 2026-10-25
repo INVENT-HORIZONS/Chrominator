@@ -22,7 +22,6 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `docs/PROTOCOL.md` | **The protocol spec. The source of truth** for frames, commands, statuses, timings. |
 | `firmware/Chrominator/Chrominator.ino` | Firmware: frame parser, command handlers, link watchdog/failsafe. |
 | `firmware/Chrominator/capture.h` | Capture engine: Timer0-compare tick, interrupt-driven ADC scan, 10-bit packing, block queue; AVR and simulator back ends. |
-| `firmware/Chrominator/burst.h` | Burst capture: free-running ADC (prescaler 16–128), circular buffer with pre-trigger, rising/falling trigger, timeout, sending. |
 | `firmware/Chrominator/board_config.h` | Per-board pin tables and capability flags; the only file a board port should need. |
 | `extension/manifest.json` | MV3, `sidePanel` permission, Chrome 116+. Bump `version` on changes. |
 | `extension/background.js` | Only sets `openPanelOnActionClick`. |
@@ -31,7 +30,6 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/link.js` | `ChrominatorLink`: request/reply by SEQ, timeouts, retries, heartbeat, LOST detection, resync. No DOM. |
 | `extension/js/serial.js` | Web Serial transport (`SerialTransport`) and port selection (`choosePort`, `lastUsedPort`). |
 | `extension/js/scope.js` | `Scope`: per-channel sample store on the board's tick clock (block unwrap), canvas drawing, legend, CSV export. |
-| `extension/js/burst.js` | `BurstPanel`: burst controls, arm/repeat/stop, plot with trigger at t = 0, stats, CSV. |
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `test/sim/` | Fake Arduino core (`Arduino.h`, `avr/wdt.h`, `sim_main.cpp`) to run the firmware on a PC. |
@@ -56,9 +54,6 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 - **Capture** (protocol v2): ADC pins in mode 5 are sampled every 1024 µs (Uno) and streamed as
   EVT_CAPTURE frames, one per channel per 32-sample block, 10-bit packed LSB-first; block number
   u16 gives time. Up to 4 blocks are queued on the board. See the *Capture* section of PROTOCOL.md.
-- **Burst** (protocol v3): BURST_START arms a one-channel free-running ADC capture (76.9k/38.5k
-  8-bit ×1024, 19.2k/9.6k 10-bit ×512) with trigger and pre-trigger; results come as
-  EVT_BURST_INFO then EVT_BURST_DATA frames. See the *Burst* section of PROTOCOL.md.
 - **The board is the source of truth for pin state.** After link recovery, a FAILSAFE/NEEDS_HELLO
   ping flag, or EVT_BOOT, the host re-reads config (and HELLO + caps after a reboot) and redraws.
 
@@ -89,20 +84,7 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   READ_ALL uses `capAdcValue()` (scan cache). The scan includes ANALOG channels for that reason.
 - **No blocking work in the capture ISRs**; keep the UART serviceable (RX overruns at 115200
   if interrupts are held off for more than ~170 µs).
-- **Capture and Burst share `sampleMem` (1 KB) and the ADC interrupt.** A burst stops Capture
-  (`capStop()`), and `capConfigure()` does nothing while `burstBusy()`; burst.h restarts Capture
-  when it has sent its data. `ISR(ADC_vect)` dispatches on `burstSampling`.
-- **Capture block numbers are the time base**: after any stop, `capConfigure()` advances `capSeq`
-  by the stopped time so the Scope shows a true gap rather than splicing.
-- The burst ADC ISR must read the result early and stay well under 208 cycles (76.9 kS/s):
-  ~140 cycles now. Don't add work to `burstSample()`.
-- After a burst the ADC must be put back to the core's settings (/128, ADLAR off, ADATE off)
-  or `analogRead()` misbehaves (`burstHalStop()`).
-- In `link.js`, a fast burst's data can arrive in the same chunk as the BURST_START reply, so
-  `startBurst()` prepares `burstRx` *before* sending and accepts any id except the previous one
-  until the reply names it. Keep that.
-- Firmware RAM is ~72.5% on the Uno (shared sample buffer 1 KB; receive buffer only 16 B because
-  host commands are ≤ 8 bytes; board name in PROGMEM). Keep it under the IDE's 75% warning.
+- Firmware RAM is ~69% on the Uno (capture ring is 960 B). Keep it under the IDE's 75% warning.
 - `protocol.js` and `link.js` must stay free of DOM and `chrome.*` APIs so they run in Node tests.
 
 ## Code patterns
@@ -126,8 +108,6 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   usable. Diagnostics and Event log are `<details>`. Fold state is saved per viewer in
   localStorage (`chrominator.folded`, keyed by section id). New panels: give them an id and a
   `.sectionhead h2`, and add their class to the selector.
-- Burst panel: channels whose pin is OUTPUT/PWM or on a bus are disabled in its channel list
-  (`refreshChannels()` on every config change). Repeat re-arms 150 ms after each result.
 - PWM slider writes are coalesced: one write in flight per pin, always ending on the latest value.
 - Output read-back: an OUTPUT pin whose level disagrees with its value (300 ms after a write)
   shows `reads HIGH!/LOW!` — a short or overload hint.
@@ -138,7 +118,7 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 
 ## Building and testing
 
-- Firmware for the Uno: Arduino IDE, board "Arduino Uno". Current size ≈ 7.4 KB flash, 1485 B RAM (72.5%).
+- Firmware for the Uno: Arduino IDE, board "Arduino Uno". Current size ≈ 5.6 KB flash, 1415 B RAM.
 - The simulator runs capture ticks from `loop()` using `micros()` and samples its fake signal at
   each tick's scheduled time (`simAdcClockUs`), so tests stay deterministic on a busy PC.
 - `test/run.sh` builds the firmware with `-DCHROMINATOR_SIM` against `test/sim` and runs

@@ -12,18 +12,8 @@
 #define CAP_BITS          10
 #define CAP_CH_BYTES      ((CAP_BLOCK_SAMPLES * CAP_BITS + 7) / 8)     // 40 bytes per channel per block
 
-// Burst capture (burst.h) and streaming capture never run at the same time, so they share one
-// sample buffer: 960 B of capture ring, or 1024 8-bit / 512 10-bit burst samples.
-#define SAMPLE_MEM_BYTES  1024
-#define CAP_BLOCK_BYTES   (NUM_ADC * CAP_CH_BYTES)
-#define CAP_RING(b, ch)   (sampleMem + (b) * CAP_BLOCK_BYTES + (ch) * CAP_CH_BYTES)
-
-static bool burstBusy();                    // burst.h: a burst owns the ADC and/or sampleMem
-static volatile bool burstSampling = false; // burst.h: the ADC is free-running for a burst
-
 #if CAPTURE_IMPL != CAPTURE_NONE
-static_assert(CAP_RING_BLOCKS * CAP_BLOCK_BYTES <= SAMPLE_MEM_BYTES, "capture ring must fit in sampleMem");
-static uint8_t  sampleMem[SAMPLE_MEM_BYTES];
+static uint8_t  capRing[CAP_RING_BLOCKS][NUM_ADC][CAP_CH_BYTES];      // 960 B on the Uno
 static uint16_t capRingSeq[CAP_RING_BLOCKS];
 static volatile uint8_t  capFill = 0;      // block the ISR is filling
 static volatile uint8_t  capReady = 0;     // finished blocks waiting to be sent
@@ -38,8 +28,6 @@ static uint8_t  capMask = 0;               // bit n = ADC channel n is in CAPTUR
 static bool     capOn = false;
 static uint16_t capOverruns = 0;           // ticks skipped because the previous scan was still running
 static uint16_t capDropped = 0;            // blocks lost because the queue was full
-static uint32_t capStoppedMs = 0;          // when capture last stopped (to keep block numbers on time)
-static bool     capWasOn = false;
 
 // ---- called from interrupt context ----
 static inline void capStore(uint8_t *buf, uint8_t k, uint16_t v) {
@@ -51,7 +39,7 @@ static inline void capStore(uint8_t *buf, uint8_t k, uint16_t v) {
 
 static inline void capOnResult(uint8_t ch, uint16_t v) {
   adcLatest[ch] = v;
-  if (capMask & (1 << ch)) capStore(CAP_RING(capFill, ch), capTick, v);
+  if (capMask & (1 << ch)) capStore(capRing[capFill][ch], capTick, v);
 }
 
 static inline void capOnTickDone() {
@@ -65,7 +53,7 @@ static inline void capOnTickDone() {
     capDropped++;                                    // queue full: overwrite this block
   }
   capSeq++;                                          // the host sees the gap in block numbers
-  memset(CAP_RING(capFill, 0), 0, CAP_BLOCK_BYTES);
+  memset(capRing[capFill], 0, sizeof capRing[0]);
 }
 
 // ---- board-specific timer + ADC driving ----
@@ -83,10 +71,7 @@ static inline void capOnTickDone() {
     adcStart(scanCh[0]);
   }
 
-  static inline void burstAdcIsr();          // burst.h
-
   ISR(ADC_vect) {
-    if (burstSampling) { burstAdcIsr(); return; }
     uint16_t v = ADC;
     capOnResult(scanCh[scanIdx], v);
     if (++scanIdx < scanN) adcStart(scanCh[scanIdx]);
@@ -130,17 +115,8 @@ static inline void capOnTickDone() {
 // ---- called from loop() ----
 
 // Re-read pin modes and (re)start or stop the engine. Call after any pin mode change.
-static void capStop() {
-  if (!capOn) return;
-  halStop();
-  capOn = false;
-  capWasOn = true;
-  capStoppedMs = millis();
-}
-
 static void capConfigure() {
-  capStop();
-  if (burstBusy()) return;                   // restarted by burst.h when the burst is finished
+  if (capOn) { halStop(); capOn = false; }
   capMask = 0; scanN = 0;
   for (uint8_t ch = 0; ch < NUM_ADC; ch++) {
     uint8_t m = pinMode_[ADC_PIN[ch]];
@@ -148,22 +124,13 @@ static void capConfigure() {
     if (m == M_CAPTURE || m == M_ANALOG) scanCh[scanN++] = ch;
   }
   capTick = 0; capReady = 0; capFill = 0;
-  memset(sampleMem, 0, CAP_RING_BLOCKS * CAP_BLOCK_BYTES);
-  if (capMask) {
-    // Block numbers are the time base: skip ahead by the time capture was stopped (plus the
-    // discarded partial block) so the host shows a gap of the right length, not a splice.
-    if (capWasOn) {
-      uint32_t blocks = (millis() - capStoppedMs) * 1000UL / ((uint32_t)CAPTURE_PERIOD_US * CAP_BLOCK_SAMPLES) + 1;
-      capSeq += (uint16_t)blocks;
-    }
-    capOn = true;
-    halStart();
-  }
+  memset(capRing, 0, sizeof capRing);
+  if (capMask) { capOn = true; halStart(); }
 }
 
 // ADC value for READ_ALL.
 static uint16_t capAdcValue(uint8_t ch) {
-  if (!capOn && !burstSampling) return (uint16_t)analogRead(ADC_PIN[ch]);
+  if (!capOn) return (uint16_t)analogRead(ADC_PIN[ch]);
   uint16_t v;
   CAP_ATOMIC_BEGIN
   v = adcLatest[ch];
@@ -186,7 +153,7 @@ static void capService() {
     if (!(capMask & (1 << ch))) continue;
     frame[0] = capRingSeq[b] & 0xFF; frame[1] = capRingSeq[b] >> 8;
     frame[2] = ch; frame[3] = CAP_BLOCK_SAMPLES; frame[4] = CAP_BITS;
-    memcpy(frame + 5, CAP_RING(b, ch), CAP_CH_BYTES);
+    memcpy(frame + 5, capRing[b][ch], CAP_CH_BYTES);
     sendFrame(0, EVT_CAPTURE, frame, sizeof frame);
   }
   CAP_ATOMIC_BEGIN
@@ -195,10 +162,6 @@ static void capService() {
 }
 
 #else   // board without a capture implementation
-static bool capOn = false;
-static void capStop() {}
-static uint8_t sampleMem[SAMPLE_MEM_BYTES];
-static volatile uint16_t adcLatest[NUM_ADC];
 static void capConfigure() {}
 static void capService() {}
 static uint16_t capAdcValue(uint8_t ch) { return (uint16_t)analogRead(ADC_PIN[ch]); }

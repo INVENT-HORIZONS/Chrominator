@@ -1,12 +1,11 @@
-# Chrominator serial protocol — version 3
+# Chrominator serial protocol — version 2
 
-*Version 2 added analog Capture (mode 5, EVT_CAPTURE), the capture period in HELLO and capture
-counters in PING. Version 3 adds Burst capture (BURST_START/CANCEL, EVT_BURST_INFO/DATA) and the
-burst size in HELLO. The extension rejects a board with a different version and asks for a re-flash.*
+*Version 2 adds analog Capture (mode 5, EVT_CAPTURE), the capture period in HELLO and capture
+counters in PING. A version-1 board is rejected by the extension with a message to re-flash.*
 
 Binary request/reply protocol between the Chrominator extension (host) and the board firmware.
 The host is always the one that asks; the board only speaks unprompted for events
-(boot, failsafe, capture and burst data).
+(boot, failsafe and capture data).
 
 ## Physical link
 
@@ -30,8 +29,7 @@ runs for about 1.5 s and may print junk; framing and CRC make the host ignore it
 ```
 
 - **SOF**: start of frame, always `0xA5`.
-- **LEN**: number of DATA bytes, 0–48. A frame with LEN > 48 is discarded. The Uno firmware only
-  accepts up to 16 DATA bytes from the host (every command is 8 bytes or less) to save RAM.
+- **LEN**: number of DATA bytes, 0–48. A frame with LEN > 48 is discarded.
 - **SEQ**: sequence number. The host uses 1–255 (wrapping, skipping 0); the reply carries the same
   SEQ so the host can match it. Board events use SEQ 0.
 - **CMD**: command code. A reply uses the request's code with bit 7 set (`CMD | 0x80`).
@@ -97,15 +95,13 @@ on RESET_PINS or failsafe.
 | CMD | Name | Request DATA | Reply DATA after status |
 |---|---|---|---|
 | 0x01 | PING | — | flags u8, uptime_ms u32, capture_overruns u16, capture_dropped u16 |
-| 0x02 | HELLO | — | proto u8, fw_major u8, fw_minor u8, board_id u8, num_pins u8, adc_bits u8, vref_mV u16, link_timeout_ms u16, capture_period_us u16 (0 = no capture), burst_samples u16 (8-bit burst length; 0 = no burst), board name (ASCII, rest of frame) |
+| 0x02 | HELLO | — | proto u8, fw_major u8, fw_minor u8, board_id u8, num_pins u8, adc_bits u8, vref_mV u16, link_timeout_ms u16, capture_period_us u16 (0 = no capture), board name (ASCII, rest of frame) |
 | 0x03 | GET_CAPS | — | num_pins u8, then per pin: flags u8, adc_channel u8 (0xFF = none) |
 | 0x04 | GET_CONFIG | — | num_pins u8, then per pin: mode u8, value u8 |
 | 0x10 | SET_MODE | pin u8, mode u8 | — |
 | 0x11 | WRITE | pin u8, value u8 | — |
 | 0x12 | READ_ALL | — | levels u32 (bit n = pin n), adc_count u8, adc_count × u16 raw readings by channel |
 | 0x13 | RESET_PINS | — | — |
-| 0x20 | BURST_START | channel u8, rate u8, trigger u8, level u16, pre_percent u8, timeout_ms u16 | burst_id u8, samples u16, trigger_index u16, period_ns u32, bits u8 |
-| 0x21 | BURST_CANCEL | — | — |
 
 **Board IDs:** 1 = Arduino Uno R3, 2 = Uno R4 Minima, 3 = Uno R4 WiFi.
 
@@ -128,8 +124,6 @@ Notes:
 | 0x60 | EVT_BOOT | proto u8, fw_major u8, fw_minor u8, board_id u8 |
 | 0x61 | EVT_FAILSAFE | — |
 | 0x62 | EVT_CAPTURE | block u16, adc_channel u8, count u8, bits u8, packed samples |
-| 0x63 | EVT_BURST_INFO | burst_id u8, result u8, adc_channel u8, bits u8, samples u16, trigger_index u16, period_ns u32 |
-| 0x64 | EVT_BURST_DATA | burst_id u8, offset u16, count u8, samples (u8 each if bits = 8, else u16 each) |
 
 EVT_BOOT is sent once when the firmware starts. EVT_FAILSAFE is sent when the link watchdog
 trips (the host may not receive it, which is why the PING flag also records it).
@@ -163,44 +157,6 @@ Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on 
   Failsafe and RESET_PINS stop capture.
 - **Bandwidth:** each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s. All six channels use about
   9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL.
-
-## Burst
-
-A burst samples **one** ADC channel as fast as the board allows, into RAM, then sends it.
-
-**Rates (Uno R3).** The ADC free-runs (each conversion starts as the last ends, 13 ADC clocks
-each), so the sample clock is exact:
-
-| rate | prescaler | period | rate | stored | samples | window |
-|---|---|---|---|---|---|---|
-| 0 | 16 | 13 µs | 76.9 kS/s | 8-bit | 1024 | 13.3 ms |
-| 1 | 32 | 26 µs | 38.5 kS/s | 8-bit | 1024 | 26.6 ms |
-| 2 | 64 | 52 µs | 19.2 kS/s | 10-bit | 512 | 26.6 ms |
-| 3 | 128 | 104 µs | 9.6 kS/s | 10-bit | 512 | 53.2 ms |
-
-Above a 200 kHz ADC clock the ATmega328P loses resolution, so rates 0 and 1 keep only the top
-8 bits. The buffer is the 1 KB shared with Capture.
-
-**BURST_START.** `level` is in 10-bit counts (0–1023) regardless of rate; `trigger` is 0 none,
-1 rising, 2 falling (with about 1% hysteresis: the signal must first be beyond the level by the
-hysteresis before a crossing counts). `pre_percent` (0–90) of the samples are taken before the
-trigger; it is ignored with no trigger. `timeout_ms` 0 waits forever. Errors: BAD_PIN (channel),
-WRONG_MODE (the channel's pin is OUTPUT or PWM), BAD_VALUE (rate, trigger, pre_percent or level
-out of range). A new BURST_START replaces a burst in progress. The reply's `trigger_index` is the
-index of the trigger sample in the data that will follow.
-
-**Sequence.** The board samples into a circular buffer from the moment it is armed, so the
-pre-trigger history is always there. When the trigger fires, it takes the remaining samples,
-stops the ADC and sends EVT_BURST_INFO (result 0 = OK), then EVT_BURST_DATA frames (40 8-bit or
-20 10-bit samples each), oldest first, `offset` = index of the frame's first sample. Sample
-`trigger_index` is the trigger; sample *k* was taken at `(k - trigger_index) * period`.
-On timeout it sends EVT_BURST_INFO with result 1 and no data; BURST_CANCEL, RESET_PINS and
-failsafe end a burst (result 2, sent only if it was still sampling).
-
-**Interaction with Capture.** A burst stops streaming Capture (they share the ADC and buffer);
-Capture restarts after the last EVT_BURST_DATA. Capture's block numbers jump by the paused time,
-so the Scope shows a gap of the right length. While a burst is sampling, READ_ALL reports the
-burst channel's latest sample and stale values for the others.
 
 ## Heartbeat and disconnection detection
 

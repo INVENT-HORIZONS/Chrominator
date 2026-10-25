@@ -2,7 +2,7 @@
 // extension's real protocol.js and link.js. Run with test/run.sh.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { crc8, encodeFrame, FrameParser, CMD, MODE, CAP, decodeCapture, TRIGGER } from '../extension/js/protocol.js';
+import { crc8, encodeFrame, FrameParser, CMD, MODE, CAP, decodeCapture } from '../extension/js/protocol.js';
 import { ChrominatorLink, LINK, ProtocolError } from '../extension/js/link.js';
 
 const SIM = process.argv[2];
@@ -231,105 +231,6 @@ await test('capture stops when pins leave capture mode', async () => {
   const n = link.stats.captureBlocks;
   await sleep(300);
   assert.equal(link.stats.captureBlocks, n);
-});
-
-// ---------- Burst ----------
-// Sim signal: channel n reads (ms + 100n) mod 1024, sampled at each sample's exact time, so a
-// value holds for 1 ms. Run lengths of equal values therefore measure the sample period.
-function nextBurst(ms = 3000) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('no burst event')), ms);
-    link.addEventListener('burst', e => { clearTimeout(t); resolve(e.detail); }, { once: true });
-  });
-}
-function innerRuns(samples) {
-  const runs = []; let len = 1;
-  for (let i = 1; i < samples.length; i++) {
-    if (samples[i] === samples[i - 1]) len++; else { runs.push(len); len = 1; }
-  }
-  return runs.slice(1);                       // first run is partial; the last one was never closed
-}
-
-await test('burst: 76.9 kS/s 8-bit, no trigger, 1024 samples at 13 us', async () => {
-  assert.equal(link.board.hello.burstSamples, 1024);
-  const done = nextBurst();
-  const r = await link.startBurst({ channel: 1, rate: 0, trigger: TRIGGER.NONE });
-  assert.deepEqual([r.samples, r.bits, r.periodNs, r.triggerIndex], [1024, 8, 13000, 0]);
-  const b = await done;
-  assert.ok(b.ok); assert.equal(b.samples.length, 1024); assert.equal(b.channel, 1);
-  const runs = innerRuns(b.samples);                   // 8-bit value steps every 4 ms = 307.7 samples
-  assert.ok(runs.length >= 2 && runs.every(n => n >= 306 && n <= 309), `runs ${runs}`);
-});
-
-await test('burst: 9.6 kS/s 10-bit, 512 samples at 104 us', async () => {
-  const done = nextBurst();
-  await link.startBurst({ channel: 0, rate: 3, trigger: TRIGGER.NONE });
-  const b = await done;
-  assert.ok(b.ok); assert.equal(b.bits, 10); assert.equal(b.samples.length, 512);
-  const runs = innerRuns(b.samples);                   // 1 ms / 104 us = 9.6 samples per value
-  assert.ok(runs.length > 40 && runs.every(n => n === 9 || n === 10), `runs ${runs.slice(0, 10)}`);
-});
-
-await test('burst: rising trigger with 25% pre-trigger', async () => {
-  const done = nextBurst();
-  const r = await link.startBurst({ channel: 2, rate: 2, trigger: TRIGGER.RISING, level: 600, prePercent: 25, timeoutMs: 3000 });
-  assert.equal(r.triggerIndex, 128);
-  const b = await done;
-  assert.ok(b.ok, b.reason); assert.equal(b.triggerIndex, 128);
-  const s = b.samples;
-  assert.ok(s[128] >= 600 && s[127] < 600, `around trigger: ${s[127]} ${s[128]}`);
-  assert.ok(s.slice(0, 128).every(v => v < 600), 'pre-trigger history is below the level');
-});
-
-await test('burst: falling trigger (8-bit) catches the ramp wrapping', async () => {
-  const done = nextBurst();
-  await link.startBurst({ channel: 3, rate: 1, trigger: TRIGGER.FALLING, level: 512, prePercent: 50, timeoutMs: 3000 });
-  const b = await done;
-  assert.ok(b.ok, b.reason); assert.equal(b.triggerIndex, 512);
-  const s = b.samples;
-  assert.ok(s[512] <= 128 && s[511] > 128, `around trigger: ${s[511]} ${s[512]}`);
-});
-
-await test('burst: timeout when the level is never crossed', async () => {
-  const now = (await nextInputs()).adc[0];
-  const done = nextBurst();
-  await link.startBurst({ channel: 0, rate: 0, trigger: TRIGGER.RISING, level: (now + 500) % 1024, timeoutMs: 150 });
-  const b = await done;
-  assert.equal(b.ok, false); assert.equal(b.reason, 'timeout');
-});
-
-await test('burst: cancel, then the board takes a new burst', async () => {
-  const now = (await nextInputs()).adc[0];
-  await link.startBurst({ channel: 0, rate: 0, trigger: TRIGGER.RISING, level: (now + 500) % 1024, timeoutMs: 0 });
-  await link.cancelBurst();
-  const done = nextBurst();
-  await link.startBurst({ channel: 0, rate: 0, trigger: TRIGGER.NONE });
-  assert.ok((await done).ok);
-});
-
-await test('burst: rejected on an output pin', async () => {
-  await link.setMode(15, MODE.OUTPUT);
-  await assert.rejects(link.startBurst({ channel: 1, rate: 0 }), e => e instanceof ProtocolError && e.status === 7);
-  await link.setMode(15, MODE.INPUT);
-});
-
-await test('burst: streaming capture pauses and resumes, with the gap in the right place', async () => {
-  const blocks = [];
-  const onCap = e => { if (e.detail.channel === 0) blocks.push(e.detail.block); };
-  link.addEventListener('capture', onCap);
-  await link.setMode(14, MODE.CAPTURE);
-  await sleep(300);
-  const done = nextBurst();
-  await link.startBurst({ channel: 1, rate: 3, trigger: TRIGGER.NONE });   // ~53 ms of sampling + sending
-  assert.ok((await done).ok);
-  await sleep(300);
-  link.removeEventListener('capture', onCap);
-  await link.setMode(14, MODE.INPUT);
-  const jumps = blocks.slice(1).map((b, i) => (b - blocks[i]) & 0xFFFF).filter(d => d !== 1);
-  assert.equal(jumps.length, 1, `jumps ${jumps}`);
-  // The pause (burst + sending, ~100-250 ms) shows up as a gap of the same length: 3-10 blocks.
-  assert.ok(jumps[0] >= 3 && jumps[0] <= 10, `gap of ${jumps[0]} blocks`);
-  assert.ok(blocks.length > 12, 'capture resumed');
 });
 
 link.stop();

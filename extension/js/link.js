@@ -6,8 +6,7 @@
 
 import {
   CMD, REPLY, FLAG, STATUS_TEXT, encodeFrame, FrameParser,
-  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll, decodeCapture, PROTO_VERSION,
-  encodeBurstStart, decodeBurstStart, decodeBurstInfo, decodeBurstData, BURST_RESULT
+  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll, decodeCapture, PROTO_VERSION
 } from './protocol.js';
 
 export const LINK = Object.freeze({ CONNECTING: 'connecting', UP: 'up', LOST: 'lost', STOPPED: 'stopped' });
@@ -46,8 +45,6 @@ export class ChrominatorLink extends EventTarget {
     this.stats = { tx: 0, rx: 0, timeouts: 0, retries: 0, rttMs: null, uptimeMs: null,
                    captureBlocks: 0, captureGaps: 0, captureOverruns: 0, captureDropped: 0 };
     this.capLastBlock = new Map();  // channel -> last block number seen (to count gaps)
-    this.burstRx = null;            // burst being received: { id, info, samples, got, timer }
-    this.lastBurstId = null;
     this.timers = [];
     this.resyncing = null;
     this.pollBusy = false;
@@ -97,29 +94,6 @@ export class ChrominatorLink extends EventTarget {
   async write(pin, value) {
     await this.request(CMD.WRITE, [pin, value], this.opt.retries);
     this.board.config[pin].value = value;
-  }
-
-  // Arm a burst. Resolves when the board has accepted it; the result arrives later as a
-  // 'burst' event ({ ok: true, channel, bits, periodNs, triggerIndex, samples } or { ok: false, reason }).
-  async startBurst(opts) {
-    // The board can finish a fast burst and start sending it in the same chunk of bytes as its
-    // reply, so be ready to receive before the reply is processed. Until the reply tells us the
-    // id, accept any burst id except the previous one.
-    this.#dropBurst();
-    const rx = this.burstRx = { id: null, notId: this.lastBurstId, info: null, samples: null, got: 0, timer: null };
-    try {
-      const r = decodeBurstStart(await this.request(CMD.BURST_START, encodeBurstStart(opts)));
-      if (rx.id == null) rx.id = r.id;
-      this.lastBurstId = r.id;
-      return r;
-    } catch (e) {
-      if (this.burstRx === rx) this.#dropBurst();
-      throw e;
-    }
-  }
-
-  async cancelBurst() {
-    await this.request(CMD.BURST_CANCEL, [], this.opt.retries);
   }
 
   async resetPins() {
@@ -177,7 +151,6 @@ export class ChrominatorLink extends EventTarget {
   }
 
   #onEvent(cmd, data) {
-    if (cmd === CMD.EVT_BURST_INFO || cmd === CMD.EVT_BURST_DATA) return this.#onBurst(cmd, data);
     if (cmd === CMD.EVT_CAPTURE) {
       const c = decodeCapture(data);
       this.stats.captureBlocks++;
@@ -194,48 +167,6 @@ export class ChrominatorLink extends EventTarget {
     } else if (cmd === CMD.EVT_FAILSAFE) {
       this.#log('warn', 'Board failsafe: it lost contact with the extension and set all pins to inputs.');
     }
-  }
-
-  #onBurst(cmd, data) {
-    const rx = this.burstRx;
-    if (cmd === CMD.EVT_BURST_INFO) {
-      const info = decodeBurstInfo(data);
-      if (!rx) return;
-      if (rx.id == null) {
-        if (info.id === rx.notId || info.result === BURST_RESULT.CANCELLED) return;   // the previous burst
-        rx.id = info.id;
-      } else if (info.id !== rx.id) return;                  // stale burst
-      if (info.result !== BURST_RESULT.OK) {
-        this.#dropBurst();
-        this.#emit('burst', { ok: false, reason: info.result === BURST_RESULT.TIMEOUT ? 'timeout' : 'cancelled' });
-        return;
-      }
-      rx.info = info;
-      rx.samples = new Uint16Array(info.samples);
-      rx.got = 0;
-      // All data follows within ~150 ms at 115200; if frames were lost, give up after 2 s.
-      rx.timer = setTimeout(() => {
-        this.#dropBurst();
-        this.#emit('burst', { ok: false, reason: 'incomplete' });
-      }, 2000);
-      return;
-    }
-    if (!rx?.info) return;
-    const d = decodeBurstData(data, rx.info.bits);
-    if (d.id !== rx.id) return;
-    rx.samples.set(d.samples, d.offset);
-    rx.got += d.samples.length;
-    if (rx.got >= rx.info.samples) {
-      const { info, samples } = rx;
-      this.#dropBurst();
-      this.#emit('burst', { ok: true, channel: info.channel, bits: info.bits, periodNs: info.periodNs,
-                            triggerIndex: info.triggerIndex, samples });
-    }
-  }
-
-  #dropBurst() {
-    if (this.burstRx?.timer) clearTimeout(this.burstRx.timer);
-    this.burstRx = null;
   }
 
   async #hello() { return decodeHello(await this.#once(CMD.HELLO, [])); }

@@ -1,5 +1,5 @@
 // Chrominator firmware — exposes the board's GPIO, PWM and ADC to the Chrominator
-// Chrome extension over USB serial. Protocol: docs/PROTOCOL.md (version 3).
+// Chrome extension over USB serial. Protocol: docs/PROTOCOL.md (version 2).
 //
 // Board: Arduino Uno R3 (tested); Uno R4 support is in board_config.h (untested).
 // Serial: 115200 8N1. Do not use Serial for anything else (no Serial.print debugging):
@@ -8,22 +8,19 @@
 #include "board_config.h"
 
 // ---------------- Protocol constants ----------------
-#define PROTO_VERSION     3
+#define PROTO_VERSION     2
 #define FW_MAJOR          1
-#define FW_MINOR          2
+#define FW_MINOR          1
 
 #define SOF               0xA5
-#define MAX_DATA          48      // longest frame the board sends
-#define MAX_RX_DATA       16      // longest frame the board accepts (host commands are <= 8)
+#define MAX_DATA          48
 #define BYTE_TIMEOUT_MS   50      // gap allowed between bytes of one frame
 #define LINK_TIMEOUT_MS   1500    // host silence before failsafe
 
 enum Cmd : uint8_t {
   CMD_PING = 0x01, CMD_HELLO = 0x02, CMD_GET_CAPS = 0x03, CMD_GET_CONFIG = 0x04,
   CMD_SET_MODE = 0x10, CMD_WRITE = 0x11, CMD_READ_ALL = 0x12, CMD_RESET_PINS = 0x13,
-  CMD_BURST_START = 0x20, CMD_BURST_CANCEL = 0x21,
-  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62,
-  EVT_BURST_INFO = 0x63, EVT_BURST_DATA = 0x64
+  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62
 };
 enum Status : uint8_t {
   ST_OK = 0, ST_UNKNOWN_CMD = 1, ST_BAD_LENGTH = 2, ST_BAD_PIN = 3, ST_BAD_MODE = 4,
@@ -33,8 +30,6 @@ enum Mode : uint8_t { M_INPUT = 0, M_PULLUP = 1, M_OUTPUT = 2, M_PWM = 3, M_ANAL
 
 #define FLAG_FAILSAFE     0x01
 #define FLAG_NEEDS_HELLO  0x02
-
-static const char boardName[] PROGMEM = BOARD_NAME;   // in flash, not RAM
 
 // ---------------- State ----------------
 static uint8_t pinMode_[NUM_PINS];   // current Mode per pin
@@ -47,7 +42,7 @@ static uint32_t lastFrameMs = 0;
 enum RxState : uint8_t { RX_SOF, RX_LEN, RX_SEQ, RX_CMD, RX_DATA, RX_CRC };
 static RxState rxState = RX_SOF;
 static uint8_t rxLen, rxSeq, rxCmd, rxPos, rxCrc;
-static uint8_t rxData[MAX_RX_DATA];
+static uint8_t rxData[MAX_DATA];
 static uint32_t rxLastByteMs = 0;
 
 // Reply buffer
@@ -76,7 +71,6 @@ static void sendFrame(uint8_t seq, uint8_t cmd, const uint8_t *data, uint8_t len
 }
 
 #include "capture.h"     // analog Capture engine; uses sendFrame() and pinMode_[]
-#include "burst.h"       // fast single-channel Burst capture; shares the ADC and buffer with capture.h
 
 // Reply helpers: tx[0] is the status byte
 static void txBegin(uint8_t status) { tx[0] = status; txLen = 1; }
@@ -99,7 +93,6 @@ static void applyMode(uint8_t pin, uint8_t mode) {
 }
 
 static void safeState() {
-  burstAbort(BR_CANCELLED);
   for (uint8_t p = 0; p < NUM_PINS; p++) {
     if (PIN_CAPS[p] & CAP_RESERVED) continue;
     applyMode(p, M_INPUT);
@@ -152,8 +145,7 @@ static void handleFrame() {
       txU8(PROTO_VERSION); txU8(FW_MAJOR); txU8(FW_MINOR); txU8(BOARD_ID);
       txU8(NUM_PINS); txU8(ADC_BITS); txU16(VREF_MV); txU16(LINK_TIMEOUT_MS);
       txU16(CAPTURE_PERIOD_US);
-      txU16(BURST_SAMPLES_8);
-      for (const char *s = boardName; pgm_read_byte(s); s++) txU8(pgm_read_byte(s));
+      for (const char *s = BOARD_NAME; *s; s++) txU8((uint8_t)*s);
       break;
     }
 
@@ -211,20 +203,6 @@ static void handleFrame() {
       break;
     }
 
-    case CMD_BURST_START:
-      if (len != 8) { txBegin(ST_BAD_LENGTH); break; }
-      txBegin(burstStart(d));
-      if (tx[0] == ST_OK) {
-        txU8(bId); txU16(bN); txU16(bPre);
-        txU32((uint32_t)BURST_PERIOD_US[bRate] * 1000UL); txU8(BURST_BITS[bRate]);
-      }
-      break;
-
-    case CMD_BURST_CANCEL:
-      burstAbort(BR_CANCELLED);
-      txBegin(ST_OK);
-      break;
-
     case CMD_RESET_PINS:
       safeState();
       txBegin(ST_OK);
@@ -247,7 +225,7 @@ static void rxByte(uint8_t b) {
       if (b == SOF) rxState = RX_LEN;
       break;
     case RX_LEN:
-      if (b > MAX_RX_DATA) { rxState = (b == SOF) ? RX_LEN : RX_SOF; break; }
+      if (b > MAX_DATA) { rxState = (b == SOF) ? RX_LEN : RX_SOF; break; }
       rxLen = b; rxCrc = crc8Update(0, b); rxState = RX_SEQ;
       break;
     case RX_SEQ:
@@ -284,7 +262,6 @@ void loop() {
 
   while (Serial.available() > 0) rxByte((uint8_t)Serial.read());
   capService();
-  burstService();
 
   // Link watchdog: host went quiet -> put every pin in the safe state.
   if (hostActive && (uint32_t)(millis() - lastFrameMs) > LINK_TIMEOUT_MS) {
