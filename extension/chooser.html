@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chrominator — choose port</title>
+<style>
+  :root { --bg: #f3f3f3; --text: #1b1b1b; --muted: #666; --accent: #0067c0; --accent-text: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1e1e; --text: #e6e6e6; --muted: #9a9a9a; --accent: #4ca0ff; --accent-text: #000; }
+  }
+  body { margin: 0; padding: 40px 20px; background: var(--bg); color: var(--text);
+         font: 14px/1.4 "Segoe UI", system-ui, sans-serif; text-align: center; }
+  p { color: var(--muted); margin: 0 0 16px; }
+  button { padding: 8px 20px; font: inherit; font-weight: 600; border: 1px solid var(--accent); border-radius: 4px;
+           background: var(--accent); color: var(--accent-text); cursor: pointer; }
+</style>
+</head>
+<body>
+  <p>Click below, then pick your Arduino's port.</p>
+  <button id="btnChoose" autofocus>Choose serial port…</button>
+  <p id="err" style="color:#c62828;margin-top:16px"></p>
+  <script src="chooser.js"></script>
+</body>
+</html>

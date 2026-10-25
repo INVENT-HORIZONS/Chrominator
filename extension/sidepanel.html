@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chrominator</title>
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header class="head">
+  <div class="brand">
+    <span class="eye" id="eye" title="Heartbeat"></span>
+    <h1>CHROMINATOR</h1>
+  </div>
+  <div class="board" id="boardInfo">No board connected</div>
+</header>
+
+<div class="banner" id="noSerial" hidden>Web Serial isn't available here. Use Chrome or Edge on a desktop computer.</div>
+
+<section class="conn">
+  <button id="btnConnect" class="primary">Connect</button>
+  <span class="pill" id="linkPill" data-state="stopped">Disconnected</span>
+  <span class="rtt" id="rtt"></span>
+</section>
+<div class="portline"><span id="portName"></span><button id="btnChoose" class="link">Choose a different port…</button></div>
+
+<section class="pins" id="pinsSection" hidden>
+  <div class="sectionhead">
+    <h2>Pins</h2>
+    <button id="btnSafe" title="Set every pin back to a plain input">All pins safe</button>
+  </div>
+  <div id="pinList" class="pinlist"></div>
+</section>
+
+<details class="diag" id="diag">
+  <summary>Diagnostics</summary>
+  <dl id="stats"></dl>
+</details>
+
+<details class="logbox" open>
+  <summary>Event log <button id="btnClearLog" class="link small">clear</button></summary>
+  <ol id="log"></ol>
+</details>
+
+<template id="pinRow">
+  <div class="pin">
+    <span class="label"></span>
+    <select class="mode" aria-label="Pin mode"></select>
+    <div class="ctl"></div>
+  </div>
+</template>
+
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>

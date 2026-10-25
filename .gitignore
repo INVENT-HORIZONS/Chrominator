@@ -1,0 +1,7 @@
+# Build output
+*.o
+*.elf
+*.hex
+chrominator-sim
+.DS_Store
+Thumbs.db
