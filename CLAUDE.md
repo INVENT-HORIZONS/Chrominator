@@ -157,6 +157,11 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Startup channels**: after `link.start()` in `connect()`, `startupScope()` puts the ADC channels in
   `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
+- **Net names**: each pin row has `input.net` (4th grid column, 84px) for the circuit net it's wired
+  to, max 16 chars, saved in localStorage `chrominator.netNames.<boardId>` ({ pin: name }).
+  `scope.setNames(adcNames())` shows A-pin names in the Oscilloscope legend ("A0 VBAT") and CSV
+  header (`A0_VBAT_V`). The panel is narrow: keep each row's controls on one line (`.ctl` gap 6px,
+  overflow hidden; the capture badge just says "Oscilloscope").
 - **A-pin colours**: each A-pin label in the pin list is coloured `TRACE_COLORS[adcChannel]`
   (`.label.adc`, `--c`), the same colour as its trace. Keep the two in step.
 - **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list

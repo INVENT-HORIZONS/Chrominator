@@ -75,12 +75,19 @@ button.small { font-size: 11px; margin-left: 6px; }
 .sectionhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .pinlist { display: flex; flex-direction: column; }
-.pin { display: grid; grid-template-columns: 38px 112px minmax(0, 1fr); gap: 8px; align-items: center;
+.pin { display: grid; grid-template-columns: 38px 112px minmax(0, 1fr) 84px; gap: 8px; align-items: center;
        padding: 5px 2px; border-top: 1px solid var(--border); min-height: 34px; }
 .pin:first-child { border-top: none; }
 .pin .label { font: 600 13px Consolas, monospace; }
 .pin .label sup { color: var(--accent); font-size: 10px; }
 .pin .label.adc { color: var(--c); }
+/* Net name: what the pin is wired to. Quiet until hovered or edited. */
+.pin .net { width: 100%; min-width: 0; font: 12px Consolas, monospace; padding: 2px 4px; color: var(--text);
+  background: transparent; border: 1px solid transparent; border-radius: 4px; text-overflow: ellipsis; }
+.pin .net::placeholder { color: var(--muted); opacity: .45; }
+.pin .net:hover { border-color: var(--border); }
+.pin .net:focus { border-color: var(--accent); background: var(--panel); outline: none; }
+.pin.onbus .net { opacity: 1; }
 .pin .label.uart-tx, .busrole.uart-tx { color: var(--uart-tx); }
 .pin .label.uart-rx, .busrole.uart-rx { color: var(--uart-rx); }
 #uartRxRow.on .busname { color: var(--uart-rx); }
@@ -89,7 +96,7 @@ h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
 .pin.reserved { color: var(--muted); }
 .pin select { width: 100%; font: inherit; padding: 3px 4px; color: var(--text); background: var(--panel);
               border: 1px solid var(--border); border-radius: 4px; }
-.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
 .level { font: 600 11px Consolas, monospace; padding: 1px 6px; border-radius: 3px; background: var(--low); color: #fff; }
 .level.high { background: var(--high); }
 .mismatch { color: var(--err); font-size: 11px; }
@@ -110,10 +117,10 @@ h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
 .num { font: 12px Consolas, monospace; min-width: 52px; text-align: right; color: var(--muted); }
 
 /* Analog */
-.bar { flex: 1; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; min-width: 30px; }
+.bar { flex: 1; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; min-width: 16px; }
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
 .volts { font: 600 12px Consolas, monospace; min-width: 52px; text-align: right; }
-.raw { font: 11px Consolas, monospace; color: var(--muted); min-width: 34px; text-align: right; }
+.raw { font: 11px Consolas, monospace; color: var(--muted); min-width: 30px; text-align: right; }
 
 /* Diagnostics and log */
 details { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin-bottom: 10px; }
@@ -172,7 +179,7 @@ dt { color: var(--muted); } dd { margin: 0; }
 .bus.on .buspins { color: var(--text); }
 .pin.onbus { color: var(--muted); }
 .pin.onbus select { opacity: .5; }
-.busrole { font: 600 11px Consolas, monospace; padding: 1px 6px; border-radius: 3px; background: var(--track); color: var(--accent); }
+.busrole { font: 600 11px Consolas, monospace; white-space: nowrap; padding: 1px 6px; border-radius: 3px; background: var(--track); color: var(--accent); }
 
 /* Collapsible panels: the heading is a toggle with the same chevron as the <details> panels */
 button.fold { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; padding: 2px 0; margin: 0; }

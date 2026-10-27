@@ -84,6 +84,10 @@ Dark is the default.
 Every panel folds up: click its heading (Oscilloscope, Generator, Pins, UART, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 
+**Net names.** Each pin row ends with a box where you can type what the pin is wired to (up to 16
+characters, e.g. `VBAT`, `LED_EN`); press Enter to keep it. Names are remembered per board type, and
+A0–A7 names also label their traces on the Oscilloscope and the columns of the saved CSV.
+
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and
 can't be used.
 

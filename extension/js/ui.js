@@ -230,7 +230,30 @@ function onPing({ rttMs }) {
 }
 
 // ---------------- pin table ----------------
+// ---------------- net names ----------------
+// A short name per pin for the circuit net it is wired to, saved per board ID in localStorage.
+const NET_KEY = id => `chrominator.netNames.${id}`;
+let netNames = {}, netBoardId = null;
+function loadNetNames(boardId) {
+  netBoardId = boardId;
+  try { netNames = JSON.parse(localStorage.getItem(NET_KEY(boardId))) || {}; } catch { netNames = {}; }
+}
+function setNetName(pin, name) {
+  name = name.trim().slice(0, 16);
+  if (name) netNames[pin] = name; else delete netNames[pin];
+  try { localStorage.setItem(NET_KEY(netBoardId), JSON.stringify(netNames)); } catch {}
+  if (rows[pin]) rows[pin].el.querySelector('.net').value = name;
+  scope.setNames(adcNames());
+}
+// ADC channel -> net name, for the Oscilloscope legend and CSV.
+function adcNames() {
+  const m = {};
+  rows.forEach((r, pin) => { if (r?.caps.adcChannel != null && netNames[pin]) m[r.caps.adcChannel] = netNames[pin]; });
+  return m;
+}
+
 function buildPins({ hello, caps, config }) {
+  loadNetNames(hello.boardId);
   $('boardInfo').textContent = `${hello.boardName} · firmware ${hello.fwMajor}.${hello.fwMinor} · ${hello.adcBits}-bit ADC`;
   scope.setBoard(hello);
   const tpl = $('pinRow');
@@ -243,6 +266,12 @@ function buildPins({ hello, caps, config }) {
     if (c.adcChannel != null) { label.classList.add('adc'); label.style.setProperty('--c', TRACE_COLORS[c.adcChannel % TRACE_COLORS.length]); }
     const select = el.querySelector('select');
     const ctl = el.querySelector('.ctl');
+    // Net name: remembered per board type (same pin numbers on the same board mean the same wiring).
+    const net = el.querySelector('.net');
+    net.value = netNames[pin] || '';
+    net.title = `Name for ${pinLabel(pin, c)}: what it's connected to, e.g. VBAT or LED_EN`;
+    net.addEventListener('change', () => setNetName(pin, net.value));
+    net.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { if (e.key === 'Escape') net.value = netNames[pin] || ''; net.blur(); } });
     const row = { el, select, ctl, caps: c, kind: null, refs: {}, lastWrite: 0 };
     if (c.caps & CAP.RESERVED) {
       el.classList.add('reserved');
@@ -259,6 +288,7 @@ function buildPins({ hello, caps, config }) {
     return row;
   });
   $('pinList').replaceChildren(...rows.map(r => r.el));
+  scope.setNames(adcNames());
   $('pinsSection').hidden = false;
   buses = BOARD_BUSES[hello.boardId] || HEADER_BUSES;
   for (const [id, bus] of Object.entries(buses)) {
@@ -389,7 +419,7 @@ function renderPin(pin, { mode, value }) {
     if (row.kind === 'capture') return;
     row.kind = 'capture';
     row.refs = {};
-    const badge = el('span', 'busrole capture', `Oscilloscope A${row.caps.adcChannel}`);
+    const badge = el('span', 'busrole capture', 'Oscilloscope');     // the colour square shows its trace
     badge.style.setProperty('--c', TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length]);
     badge.title = 'Drawn on the Oscilloscope panel. Stop it with the ✕ next to this trace there.';
     row.ctl.replaceChildren(badge);

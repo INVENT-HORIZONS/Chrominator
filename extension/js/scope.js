@@ -49,7 +49,11 @@ export class Scope {
     this.clearAll();
   }
 
-  redraw() { this.#touch(); }                 // e.g. after the light/dark theme changes
+  redraw() { this.#touch(); }
+
+  // Net names by ADC channel ({ 0: 'VBAT', … }), shown in the legend and the CSV header.
+  setNames(names) { this.names = names || {}; this.#renderLegend(); }
+  #label(ch) { return this.names?.[ch] ? `A${ch} ${this.names[ch]}` : `A${ch}`; }                 // e.g. after the light/dark theme changes
 
   setActive(channels) { this.active = channels; this.#renderLegend(); this.#touch(); }
 
@@ -213,7 +217,8 @@ export class Scope {
       // Fixed slot per channel: A0-A3 on the first row, A4-A7 directly underneath.
       item.style.gridColumn = String(ch % 4 + 1);
       item.style.gridRow = String(Math.floor(ch / 4) + 1);
-      item.innerHTML = `<i></i>A${ch} <b data-ch="${ch}">—</b>`;
+      item.innerHTML = `<i></i><span class="tn"></span> <b data-ch="${ch}">—</b>`;
+      item.querySelector('.tn').textContent = this.#label(ch);
       // V toggle: hide the live voltage for fast signals where the number just flickers.
       const on = this.meterOn.has(ch);
       const v = Object.assign(document.createElement('button'), { type: 'button', className: 'meter', textContent: 'V' });
@@ -253,7 +258,8 @@ export class Scope {
     if (!chans.length || this.endTick < 0) return;
     const first = Math.max(0, this.endTick - CAPACITY + 1);
     let t0 = null;
-    const lines = ['time_s,' + chans.map(ch => `A${ch}_V`).join(',')];
+    const csvName = ch => `A${ch}${this.names?.[ch] ? '_' + this.names[ch].replace(/[^\w.-]+/g, '_') : ''}_V`;
+    const lines = ['time_s,' + chans.map(csvName).join(',')];
     for (let t = first; t <= this.endTick; t++) {
       const i = t & (CAPACITY - 1);
       const vals = chans.map(ch => { const c = this.channels.get(ch); return c.tick[i] === t ? this.volts(c.raw[i]).toFixed(4) : ''; });
