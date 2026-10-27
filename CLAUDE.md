@@ -109,6 +109,13 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   UI reacts to events; it never parses frames itself.
 - Pin rows are built once per board (`buildPins`) from the board's capabilities, then updated in
   place (`renderPin` rebuilds a row's control only when its mode changes; `updateInputs` updates values).
+- **UART panel** (`#uartSection`, a `section.buses`, above I²C Port) is UI-only so far. `BOARD_UART` in
+  `ui.js`: Uno R4s and Nano R4 have Serial1 on D0 (RX) / D1 (TX); none on the Uno R3 (D0/D1
+  RESERVED). **RX and TX are independent** (user requirement: often only TX is used and RX's pin
+  does something else): `uartOn.rx` / `uartOn.tx`, set from the panel switches or from the pin's
+  dropdown option "UART RX"/"UART TX" (value `uart-rx`/`uart-tx`, not a protocol mode). Turning one
+  on puts only that pin back to INPUT on the board; the row stays selectable (`row.kind = 'uart:rx'`)
+  so picking another mode turns that half off. Baud/Format selects are placeholders.
 - **I²C Port and SPI Port panels** (`#i2cSection`, `#spiSection`, both `section.buses`) are UI-only so far: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
   bus to its pins (I²C A4/A5; SPI D13/D11/D12/D10). Turning a bus on sets any of its pins that
   aren't INPUT back to INPUT (via SET_MODE), then `renderPin` shows them disabled with their role

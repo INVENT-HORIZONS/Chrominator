@@ -23,6 +23,23 @@ let buses = HEADER_BUSES;
 const BOARD_DAC = { 2: '12-bit DAC on A0', 3: '12-bit DAC on A0', 4: '12-bit DAC on A0' };
 const busOn = { i2c: false, spi: false };     // UI state only for now; the board isn't told yet
 
+// UART pins by board ID. On the Uno R4s and Nano R4, USB is native, so Serial1 is free on D0 (RX)
+// and D1 (TX). On the Uno R3 those pins carry the USB link (RESERVED), so there's no UART here.
+// RX and TX are switched on independently (often only TX is used and RX's pin does something else).
+// UI state only for now: the pin is put back to a plain input on the board and nothing is sent.
+const HEADER_UART = { rx: 0, tx: 1 };
+const BOARD_UART = { 2: HEADER_UART, 3: HEADER_UART, 4: HEADER_UART };
+let uart = null;                                    // { rx: pin, tx: pin } for this board, or null
+const uartOn = { rx: false, tx: false };
+const UART_ROLE = { rx: 'RX', tx: 'TX' };
+const UART_ID = { rx: 'Rx', tx: 'Tx' };          // element ids: uartRxOn, uartTxRow, uartRxPin…
+
+function uartRole(pin) {
+  if (!uart) return null;
+  for (const r of ['rx', 'tx']) if (uartOn[r] && uart[r] === pin) return r;
+  return null;
+}
+
 function busOwner(pin) {
   for (const [id, bus] of Object.entries(buses)) {
     if (!busOn[id]) continue;
@@ -181,7 +198,17 @@ function buildPins({ hello, caps, config }) {
       const allowed = [[MODE.INPUT, CAP.DIN], [MODE.PULLUP, CAP.PULLUP], [MODE.OUTPUT, CAP.DOUT],
                        [MODE.PWM, CAP.PWM], [MODE.ANALOG, CAP.ADC], [MODE.CAPTURE, CAP.CAPTURE]];
       for (const [m, need] of allowed) if (c.caps & need) select.add(new Option(MODE_NAME[m], m));
-      select.addEventListener('change', () => changeMode(pin, +select.value));
+      const ub = BOARD_UART[hello.boardId];
+      for (const r of ['rx', 'tx']) if (ub && ub[r] === pin) select.add(new Option(`UART ${UART_ROLE[r]}`, `uart-${r}`));
+      select.addEventListener('change', () => {
+        const v = select.value;
+        if (v.startsWith('uart-')) setUart(v.slice(5), true);
+        else {
+          const r = uartRole(pin);
+          if (r) setUart(r, false);
+          changeMode(pin, +v);
+        }
+      });
     }
     return row;
   });
@@ -192,6 +219,15 @@ function buildPins({ hello, caps, config }) {
     $(`${id}Pins`).textContent = bus.pins.map(([p, role]) => `${role}\u00A0${pinLabel(p, caps[p])}`).join(' · ');
     syncBusControls(id);
   }
+  uart = BOARD_UART[hello.boardId] || null;
+  if (!uart) { uartOn.rx = false; uartOn.tx = false; }
+  for (const r of ['rx', 'tx']) {
+    $(`uart${UART_ID[r]}Pin`).textContent = uart ? pinLabel(uart[r], caps[uart[r]]) : '—';
+  }
+  $('uartNote').textContent = uart
+    ? 'RX and TX are independent: turn on just TX and RX\'s pin stays free for anything else. Sending and receiving data isn\'t wired up yet.'
+    : `${hello.boardName}: D0/D1 carry the USB link, so there is no free UART.`;
+  syncUartControls();
   for (const sec of document.querySelectorAll('section.buses')) sec.hidden = false;
   // Generator (DAC) panel: a placeholder for now; nothing drives the DAC yet.
   const dac = BOARD_DAC[hello.boardId];
@@ -206,6 +242,32 @@ function syncBusControls(id) {
   $(`${id}On`).checked = busOn[id];
   $(id === 'i2c' ? 'busI2c' : 'busSpi').classList.toggle('on', busOn[id]);
   document.querySelectorAll(`#${id === 'i2c' ? 'busI2c' : 'busSpi'} .busopts select`).forEach(sel => { sel.disabled = !busOn[id]; });
+}
+
+function syncUartControls() {
+  for (const r of ['rx', 'tx']) {
+    $(`uart${UART_ID[r]}On`).checked = uartOn[r];
+    $(`uart${UART_ID[r]}On`).disabled = !uart;
+    $(`uart${UART_ID[r]}Row`).classList.toggle('on', uartOn[r]);
+  }
+  const any = uartOn.rx || uartOn.tx;
+  $('uartBaud').disabled = !any; $('uartFormat').disabled = !any;
+}
+
+// Switch the UART's RX or TX on or off. Only that one pin is affected.
+async function setUart(r, on) {
+  if (!uart) return;
+  const pin = uart[r], label = pinLabel(pin, rows[pin]?.caps);
+  if (on && link?.board && link.board.config[pin].mode !== MODE.INPUT) {
+    // Hand the pin over in a known state: anything driving or capturing goes back to a plain input.
+    try { await link.setMode(pin, MODE.INPUT); }
+    catch (e) { log('error', `UART ${UART_ROLE[r]}: could not release ${label}: ${e.message}`); }
+  }
+  uartOn[r] = on;
+  syncUartControls();
+  if (rows[pin]) rows[pin].kind = null;                                  // force the row to redraw
+  if (link?.board) renderAllPins(link.board.config);
+  log('info', on ? `UART ${UART_ROLE[r]} on: ${label} reserved for it.` : `UART ${UART_ROLE[r]} off: ${label} available again.`);
 }
 
 async function setBus(id, on) {
@@ -238,6 +300,18 @@ function renderAllPins(config) {
 
 function renderPin(pin, { mode, value }) {
   const row = rows[pin];
+  // A UART pin: the dropdown shows UART RX/TX (and stays usable to switch it back).
+  const ur = uartRole(pin);
+  if (ur) {
+    row.el.classList.remove('onbus');
+    row.select.disabled = false;
+    row.select.value = `uart-${ur}`;
+    if (row.kind === `uart:${ur}`) return;
+    row.kind = `uart:${ur}`;
+    row.refs = {};
+    row.ctl.replaceChildren(el('span', 'busrole', `UART ${UART_ROLE[ur]}`));
+    return;
+  }
   row.select.value = mode;
   const owner = busOwner(pin);
   row.el.classList.toggle('onbus', !!owner);
@@ -374,7 +448,7 @@ $('btnSafe').onclick = async () => {
   catch (e) { log('error', 'Reset failed: ' + e.message); }
 };
 // ---------------- collapsible panels ----------------
-// Capture, Generator, Pins, I²C Port and SPI Port fold up from their heading; Diagnostics and Event log are <details>.
+// Oscilloscope, Generator, Pins, UART, I²C Port and SPI Port fold up from their heading; Diagnostics and Event log are <details>.
 // Header controls (All pins safe, scope settings) stay usable while a panel is folded.
 // Folded/open state is remembered per viewer in localStorage.
 const FOLD_KEY = 'chrominator.folded';
@@ -406,6 +480,8 @@ function initCollapsibles() {
 }
 initCollapsibles();
 
+$('uartRxOn').addEventListener('change', e => setUart('rx', e.target.checked));
+$('uartTxOn').addEventListener('change', e => setUart('tx', e.target.checked));
 $('i2cOn').addEventListener('change', e => setBus('i2c', e.target.checked));
 $('spiOn').addEventListener('change', e => setBus('spi', e.target.checked));
 $('btnClearLog').onclick = e => { e.preventDefault(); $('log').replaceChildren(); };

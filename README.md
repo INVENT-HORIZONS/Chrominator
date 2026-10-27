@@ -58,6 +58,12 @@ just makes the number flicker; remembered per channel), and **save CSV** to expo
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
+**UART.** Above the I²C Port, the Nano R4's UART (`Serial1`): **RX on D0**, **TX on D1**. RX and TX
+are independent: pick **UART RX** in D0's dropdown or **UART TX** in D1's (or use the panel's RX/TX
+switches), and the other pin stays free for anything else, since often only TX is used. Baud and
+frame-format settings are there, but sending and receiving data isn't implemented yet. (On the Uno
+R3, D0/D1 carry the USB link, so there is no free UART.)
+
 **I²C Port and SPI Port.** Below the pins, each bus has its own panel: switch on **I²C** (SDA A4,
 SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
@@ -66,7 +72,7 @@ bit-order settings are there, but sending and receiving data isn't implemented y
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
 
-Every panel folds up: click its heading (Oscilloscope, Generator, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
+Every panel folds up: click its heading (Oscilloscope, Generator, Pins, UART, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and

@@ -63,6 +63,35 @@
   <div id="pinList" class="pinlist"></div>
 </section>
 
+<section class="buses" id="uartSection" hidden>
+  <div class="sectionhead"><h2>UART</h2></div>
+  <div class="bus" id="uartRxRow">
+    <label class="switch"><input type="checkbox" id="uartRxOn" aria-label="Enable UART RX"><span></span></label>
+    <span class="busname">RX</span>
+    <span class="buspins" id="uartRxPin"></span>
+  </div>
+  <div class="bus" id="uartTxRow">
+    <label class="switch"><input type="checkbox" id="uartTxOn" aria-label="Enable UART TX"><span></span></label>
+    <span class="busname">TX</span>
+    <span class="buspins" id="uartTxPin"></span>
+  </div>
+  <div class="bus" id="uartCfg">
+    <div class="busopts">
+      <label>Baud <select id="uartBaud" disabled>
+        <option value="1200">1200</option><option value="2400">2400</option><option value="4800">4800</option>
+        <option value="9600" selected>9600</option><option value="19200">19200</option><option value="38400">38400</option>
+        <option value="57600">57600</option><option value="115200">115200</option>
+        <option value="230400">230400</option><option value="460800">460800</option><option value="921600">921600</option>
+      </select></label>
+      <label>Format <select id="uartFormat" disabled>
+        <option value="8N1" selected>8N1</option><option value="8E1">8E1</option><option value="8O1">8O1</option>
+        <option value="8N2">8N2</option><option value="7E1">7E1</option><option value="7O1">7O1</option>
+      </select></label>
+    </div>
+  </div>
+  <div class="note small" id="uartNote">RX and TX are independent: turn on just TX and RX's pin stays free for anything else. Sending and receiving data isn't wired up yet.</div>
+</section>
+
 <section class="buses" id="i2cSection" hidden>
   <div class="sectionhead"><h2>I²C Port</h2></div>
   <div class="bus" id="busI2c">
