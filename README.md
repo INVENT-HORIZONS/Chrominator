@@ -46,7 +46,8 @@ link the whole time, and the board drops every pin to a safe state if the browse
 | Analog (A0–A7 on the Nano R4, A0–A5 on the Uno) | Voltage (5 V reference), raw reading (14-bit on the Nano R4, 10-bit on the Uno) and a bar |
 | Oscilloscope (A0–A7 Nano R4, A0–A5 Uno) | The pin is sampled continuously (100 times a second on the Nano R4, ~1000 on the Uno) and drawn on the **Oscilloscope** panel; its row is greyed out, and the ✕ next to its trace stops it (back to Analog) |
 
-**Oscilloscope.** The Oscilloscope panel sits at the top, above the pins. Put one or more analog pins in
+**Oscilloscope.** The Oscilloscope panel sits at the top, above the pins. When Chrominator connects,
+it puts **A0 and A1** on the oscilloscope straight away (if they're plain inputs); change them as you like after that. Put one or more analog pins in
 **Oscilloscope** mode and their waveforms are drawn there in roll mode (newest sample at the right edge,
 the trace moving left), overlaid, each in its pin's colour: A0–A7 carry the same colour in the
 pin list. The board samples all capturing pins at the same instant: 100 times a second with full

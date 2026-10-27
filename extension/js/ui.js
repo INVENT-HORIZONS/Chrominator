@@ -109,6 +109,20 @@ const formatUptime = ms => {
 };
 
 // ---------------- connection ----------------
+// ADC channels put on the Oscilloscope when the extension connects (A0 and A1), on boards that can
+// capture. Only done at connect: after that, the user's choices stand.
+const STARTUP_SCOPE_CHANNELS = [0, 1];
+
+async function startupScope() {
+  if (!link?.board?.hello.capturePeriodUs) return;
+  const { caps, config } = link.board;
+  for (const ch of STARTUP_SCOPE_CHANNELS) {
+    const pin = caps.findIndex(c => c.adcChannel === ch);
+    if (pin < 0 || !(caps[pin].caps & CAP.CAPTURE) || config[pin].mode === MODE.CAPTURE) continue;
+    if (config[pin].mode !== MODE.INPUT || busOwner(pin) || uartRole(pin)) continue;   // in use: leave it
+    await changeMode(pin, MODE.CAPTURE);
+  }
+}
 const STATE_TEXT = { stopped: 'Disconnected', connecting: 'Connecting…', up: 'Connected', lost: 'Link lost' };
 
 function setState(state) {
@@ -155,7 +169,9 @@ async function connect(forceChoose = false) {
     } catch (e) {
       log('error', e.message);
       await disconnect(false);
+      return;
     }
+    await startupScope();
   } catch (e) {
     log('error', 'Connect failed: ' + e.message);
   } finally {

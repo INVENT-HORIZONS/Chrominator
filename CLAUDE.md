@@ -133,6 +133,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Generator panel** (`#genSection`, `section.gen`) sits right under Capture. It is a placeholder for
   the DAC (A0, 12-bit on the Nano R4 / Uno R4s; `BOARD_DAC` in `ui.js`): heading and a note only.
   The user hasn't decided what it should do yet; don't add controls or protocol until asked.
+- **Startup channels**: after `link.start()` in `connect()`, `startupScope()` puts the ADC channels in
+  `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
+  plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
 - **A-pin colours**: each A-pin label in the pin list is coloured `TRACE_COLORS[adcChannel]`
   (`.label.adc`, `--c`), the same colour as its trace. Keep the two in step.
 - **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list
