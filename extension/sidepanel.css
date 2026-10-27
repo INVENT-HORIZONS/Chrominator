@@ -127,6 +127,7 @@ dt { color: var(--muted); } dd { margin: 0; }
 .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; background: var(--c); }
 
 /* Buses */
+.gen { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 10px; }
 .buses { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 10px; }
 .buses.offline { opacity: .5; pointer-events: none; }
 .bus { display: grid; grid-template-columns: 38px 38px minmax(0, 1fr); gap: 4px 8px; align-items: center;

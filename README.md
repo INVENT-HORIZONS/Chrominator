@@ -63,7 +63,10 @@ SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
 bit-order settings are there, but sending and receiving data isn't implemented yet.
 
-Every panel folds up: click its heading (Capture, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
+**Generator.** Right under Capture, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
+controls yet.
+
+Every panel folds up: click its heading (Capture, Generator, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and

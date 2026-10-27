@@ -121,6 +121,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Capture panel** (`#scopeSection`, heading "Capture") sits at the top, above Pins. It is shown
   whenever a board is connected: with a hint until a pin is set to Capture, or, if
   `hello.capturePeriodUs` is 0 (old firmware or a board without capture), a note to re-upload. Drawing is roll mode: newest sample at the right edge.
+- **Generator panel** (`#genSection`, `section.gen`) sits right under Capture. It is a placeholder for
+  the DAC (A0, 12-bit on the Nano R4 / Uno R4s; `BOARD_DAC` in `ui.js`): heading and a note only.
+  The user hasn't decided what it should do yet; don't add controls or protocol until asked.
 - **A-pin colours**: each A-pin label in the pin list is coloured `TRACE_COLORS[adcChannel]`
   (`.label.adc`, `--c`), the same colour as its trace. Keep the two in step.
 - **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list

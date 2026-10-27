@@ -19,6 +19,8 @@ const HEADER_BUSES = {
 };
 const BOARD_BUSES = { 1: HEADER_BUSES, 2: HEADER_BUSES, 3: HEADER_BUSES, 4: HEADER_BUSES };
 let buses = HEADER_BUSES;
+// Digital-to-analog converter per board ID, for the Generator panel (Uno R4s and Nano R4: 12-bit on A0).
+const BOARD_DAC = { 2: '12-bit DAC on A0', 3: '12-bit DAC on A0', 4: '12-bit DAC on A0' };
 const busOn = { i2c: false, spi: false };     // UI state only for now; the board isn't told yet
 
 function busOwner(pin) {
@@ -137,6 +139,7 @@ async function disconnect(say = true) {
   $('boardInfo').textContent = 'No board connected';
   $('pinsSection').hidden = true;
   for (const sec of document.querySelectorAll('section.buses')) sec.hidden = true;
+  $('genSection').hidden = true;
   $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
@@ -190,6 +193,12 @@ function buildPins({ hello, caps, config }) {
     syncBusControls(id);
   }
   for (const sec of document.querySelectorAll('section.buses')) sec.hidden = false;
+  // Generator (DAC) panel: a placeholder for now; nothing drives the DAC yet.
+  const dac = BOARD_DAC[hello.boardId];
+  $('genInfo').textContent = dac
+    ? `Output: ${dac}. Generator controls aren't wired up yet.`
+    : `${hello.boardName} has no DAC.`;
+  $('genSection').hidden = false;
   renderAllPins(config);
 }
 
@@ -365,7 +374,7 @@ $('btnSafe').onclick = async () => {
   catch (e) { log('error', 'Reset failed: ' + e.message); }
 };
 // ---------------- collapsible panels ----------------
-// Capture, Pins, I²C Port and SPI Port fold up from their heading; Diagnostics and Event log are <details>.
+// Capture, Generator, Pins, I²C Port and SPI Port fold up from their heading; Diagnostics and Event log are <details>.
 // Header controls (All pins safe, scope settings) stay usable while a panel is folded.
 // Folded/open state is remembered per viewer in localStorage.
 const FOLD_KEY = 'chrominator.folded';
@@ -376,7 +385,7 @@ function saveFold(id, folded) {
 }
 function initCollapsibles() {
   const folds = loadFolds();
-  for (const sec of document.querySelectorAll('section.buses, section.pins, section.scope')) {
+  for (const sec of document.querySelectorAll('section.buses, section.pins, section.scope, section.gen')) {
     const h2 = sec.querySelector('.sectionhead h2');
     const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'fold' });
     btn.title = 'Show or hide this panel';
