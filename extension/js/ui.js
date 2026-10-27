@@ -219,12 +219,12 @@ async function setBus(id, on) {
 
 function renderAllPins(config) {
   config.forEach((cfg, pin) => { if (rows[pin] && !(rows[pin].caps.caps & CAP.RESERVED)) renderPin(pin, cfg); });
-  // The Capture panel shows every ADC channel in Capture mode, overlaid. It stays visible on any
-  // board that can capture, with a hint until a pin is set to Capture.
+  // The Capture panel shows every ADC channel in Capture mode, overlaid. It is always visible while
+  // connected: with a hint until a pin is set to Capture, or a note if the firmware can't capture.
   const capturing = config.flatMap((cfg, pin) =>
     cfg.mode === MODE.CAPTURE && rows[pin]?.caps.adcChannel != null ? [rows[pin].caps.adcChannel] : []);
   scope.setActive(capturing);
-  $('scopeSection').hidden = !link?.board?.hello.capturePeriodUs;
+  $('scopeSection').hidden = !link?.board;
 }
 
 function renderPin(pin, { mode, value }) {

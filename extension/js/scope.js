@@ -38,10 +38,14 @@ export class Scope {
   }
 
   setBoard(hello) {
+    this.canCapture = !!hello.capturePeriodUs;
+    this.fwText = `${hello.boardName} firmware ${hello.fwMajor}.${hello.fwMinor}`;
     this.periodUs = hello.capturePeriodUs || 1024;
     this.vrefMv = hello.vrefMv;
     this.full = (1 << hello.adcBits) - 1;
-    this.rateLabel.textContent = `${(1e6 / this.periodUs).toFixed(1)} samples/s per channel · ${hello.adcBits}-bit`;
+    this.rateLabel.textContent = this.canCapture
+      ? `${(1e6 / this.periodUs).toFixed(1)} samples/s per channel · ${hello.adcBits}-bit`
+      : `${this.fwText} has no capture. Upload the sketch from this version of Chrominator to enable it.`;
     this.clearAll();
   }
 
@@ -151,7 +155,8 @@ export class Scope {
     }
     if (!this.active.length || end < 0) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(this.active.length ? 'Waiting for samples…' : 'Set an analog pin (A0–A7) to Capture to draw it here',
+      ctx.fillText(this.canCapture === false ? 'No capture in this firmware'
+                   : this.active.length ? 'Waiting for samples…' : 'Set an A-pin to Capture',
                    padL + pw / 2, padT + ph / 2);
       return;
     }

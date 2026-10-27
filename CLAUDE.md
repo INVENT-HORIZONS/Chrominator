@@ -115,8 +115,8 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   still designing how master and slave traffic will work; don't implement it until asked.
   Sniffing was considered and dropped (I²C slave must ACK; Uno SPI slave sees one direction only).
 - **Capture panel** (`#scopeSection`, heading "Capture") sits at the top, above Pins. It is shown
-  whenever the board can capture (`hello.capturePeriodUs` non-zero), with a hint until a pin is
-  set to Capture. Drawing is roll mode: newest sample at the right edge.
+  whenever a board is connected: with a hint until a pin is set to Capture, or, if
+  `hello.capturePeriodUs` is 0 (old firmware or a board without capture), a note to re-upload. Drawing is roll mode: newest sample at the right edge.
 - **A-pin colours**: each A-pin label in the pin list is coloured `TRACE_COLORS[adcChannel]`
   (`.label.adc`, `--c`), the same colour as its trace. Keep the two in step.
 - **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list
