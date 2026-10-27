@@ -28,7 +28,12 @@
   <div class="sectionhead">
     <h2>Oscilloscope</h2>
     <div class="scopectl">
-      <select id="scopeWindow" title="Time across the screen">
+      <div class="timebase" title="Time across the screen">
+        <button id="tbLess" type="button" aria-label="Shorter timebase">◀</button>
+        <span id="tbValue">10 s</span>
+        <button id="tbMore" type="button" aria-label="Longer timebase">▶</button>
+      </div>
+      <select id="scopeWindow" hidden>
         <option value="1">1 s</option><option value="2">2 s</option><option value="5">5 s</option>
         <option value="10" selected>10 s</option><option value="30">30 s</option>
         <option value="60">60 s</option><option value="120">2 min</option>

@@ -141,6 +141,8 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - Capture legend is a fixed 4-column grid: each trace sits in its channel's slot (A0–A3 on row 1,
   A4–A7 directly under them; `gridColumn`/`gridRow` set in `#renderLegend`). clear / save CSV wrap
   under the legend when the panel is narrow.
+- **Timebase** is ◀ / ▶ buttons (`#tbLess`, `#tbMore`, `stepTimebase` in `ui.js`) stepping through the
+  options of the now-hidden `#scopeWindow` select, which stays the state `Scope` reads.
 - Scope legend: each trace has a **V** toggle (`Scope.toggleMeter`) for its live voltage readout.
   Readouts are **hidden by default**; the set of channels the user turned on is saved in
   localStorage (`chrominator.scopeMeterOn`).

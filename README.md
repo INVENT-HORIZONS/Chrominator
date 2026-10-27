@@ -51,8 +51,8 @@ link the whole time, and the board drops every pin to a safe state if the browse
 the trace moving left), overlaid, each in its pin's colour: A0–A7 carry the same colour in the
 pin list. The board samples all capturing pins at the same instant: 100 times a second with full
 14-bit readings on the Nano R4 (sent in 8-sample blocks), 976.6 times a second at 10 bits on the
-Uno (32-sample blocks). The time axis comes from the board's clock, not the PC's. Pick 1 s to 2 min
-across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze the picture
+Uno (32-sample blocks). The time axis comes from the board's clock, not the PC's. Step the timebase with **◀ / ▶** (1 s to 2 min
+across the screen), a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze the picture
 (capture carries on underneath), the **V** next to each trace to show its live voltage (off by default, since a fast signal
 just makes the number flicker; remembered per channel), and **save CSV** to export everything held (about the last
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after

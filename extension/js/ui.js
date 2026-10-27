@@ -49,6 +49,23 @@ function busOwner(pin) {
   return null;
 }
 
+// Timebase: ◀ / ▶ step through the (hidden) scopeWindow options, 1 s … 2 min across the screen.
+function stepTimebase(d) {
+  const sel = $('scopeWindow');
+  const i = Math.min(sel.options.length - 1, Math.max(0, sel.selectedIndex + d));
+  if (i !== sel.selectedIndex) { sel.selectedIndex = i; sel.dispatchEvent(new Event('change')); }
+  syncTimebase();
+}
+function syncTimebase() {
+  const sel = $('scopeWindow');
+  $('tbValue').textContent = sel.options[sel.selectedIndex].text;
+  $('tbLess').disabled = sel.selectedIndex === 0;
+  $('tbMore').disabled = sel.selectedIndex === sel.options.length - 1;
+}
+$('tbLess').addEventListener('click', () => stepTimebase(-1));
+$('tbMore').addEventListener('click', () => stepTimebase(1));
+syncTimebase();
+
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
   windowSelect: $('scopeWindow'), rangeSelect: $('scopeRange'),
