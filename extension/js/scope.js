@@ -45,7 +45,7 @@ export class Scope {
     this.full = (1 << hello.adcBits) - 1;
     this.rateLabel.textContent = this.canCapture
       ? `${(1e6 / this.periodUs).toFixed(1)} samples/s per channel · ${hello.adcBits}-bit`
-      : `${this.fwText} has no capture. Upload the sketch from this version of Chrominator to enable it.`;
+      : `${this.fwText} has no oscilloscope. Upload the sketch from this version of Chrominator to enable it.`;
     this.clearAll();
   }
 
@@ -155,8 +155,8 @@ export class Scope {
     }
     if (!this.active.length || end < 0) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(this.canCapture === false ? 'No capture in this firmware'
-                   : this.active.length ? 'Waiting for samples…' : 'Set an A-pin to Capture',
+      ctx.fillText(this.canCapture === false ? 'No oscilloscope in this firmware'
+                   : this.active.length ? 'Waiting for samples…' : 'Set an A-pin to Oscilloscope',
                    padL + pw / 2, padT + ph / 2);
       return;
     }
@@ -222,7 +222,7 @@ export class Scope {
       item.append(v);
       if (this.onStop) {
         const x = Object.assign(document.createElement('button'), { type: 'button', className: 'stop', textContent: '✕',
-                                                                    title: `Stop capturing A${ch}` });
+                                                                    title: `Remove A${ch} from the oscilloscope` });
         x.addEventListener('click', () => this.onStop(ch));
         item.append(x);
       }

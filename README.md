@@ -44,10 +44,10 @@ link the whole time, and the board drops every pin to a safe state if the browse
 | Output | On/off switch; shows `reads LOW!` if the pin doesn't follow (short or overload) |
 | PWM (pins marked ~) | Slider, 0–255 |
 | Analog (A0–A7 on the Nano R4, A0–A5 on the Uno) | Voltage (5 V reference), raw reading (14-bit on the Nano R4, 10-bit on the Uno) and a bar |
-| Capture (A0–A7 Nano R4, A0–A5 Uno) | The pin is sampled continuously (100 times a second on the Nano R4, ~1000 on the Uno) and drawn on the **Capture** panel; its row is greyed out, and the ✕ next to its trace stops it (back to Analog) |
+| Oscilloscope (A0–A7 Nano R4, A0–A5 Uno) | The pin is sampled continuously (100 times a second on the Nano R4, ~1000 on the Uno) and drawn on the **Oscilloscope** panel; its row is greyed out, and the ✕ next to its trace stops it (back to Analog) |
 
-**Capture.** The Capture panel sits at the top, above the pins. Put one or more analog pins in
-**Capture** and their waveforms are drawn there in roll mode (newest sample at the right edge,
+**Oscilloscope.** The Oscilloscope panel sits at the top, above the pins. Put one or more analog pins in
+**Oscilloscope** mode and their waveforms are drawn there in roll mode (newest sample at the right edge,
 the trace moving left), overlaid, each in its pin's colour: A0–A7 carry the same colour in the
 pin list. The board samples all capturing pins at the same instant: 100 times a second with full
 14-bit readings on the Nano R4 (sent in 8-sample blocks), 976.6 times a second at 10 bits on the
@@ -63,10 +63,10 @@ SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
 bit-order settings are there, but sending and receiving data isn't implemented yet.
 
-**Generator.** Right under Capture, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
+**Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
 
-Every panel folds up: click its heading (Capture, Generator, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
+Every panel folds up: click its heading (Oscilloscope, Generator, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and

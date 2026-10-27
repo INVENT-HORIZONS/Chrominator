@@ -249,9 +249,9 @@ function renderPin(pin, { mode, value }) {
     if (row.kind === 'capture') return;
     row.kind = 'capture';
     row.refs = {};
-    const badge = el('span', 'busrole capture', `Capture A${row.caps.adcChannel}`);
+    const badge = el('span', 'busrole capture', `Oscilloscope A${row.caps.adcChannel}`);
     badge.style.setProperty('--c', TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length]);
-    badge.title = 'Drawn on the Capture panel. Stop it with the ✕ next to this trace there.';
+    badge.title = 'Drawn on the Oscilloscope panel. Stop it with the ✕ next to this trace there.';
     row.ctl.replaceChildren(badge);
     return;
   }

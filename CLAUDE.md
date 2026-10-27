@@ -118,7 +118,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   clock and SPI clock/mode/order selects; all are placeholders that nothing reads yet. The user is
   still designing how master and slave traffic will work; don't implement it until asked.
   Sniffing was considered and dropped (I²C slave must ACK; Uno SPI slave sees one direction only).
-- **Capture panel** (`#scopeSection`, heading "Capture") sits at the top, above Pins. It is shown
+- **Naming:** the user-facing name for CAPTURE mode and its panel is **Oscilloscope** (`MODE_NAME[5]`,
+  panel heading, badge "Oscilloscope A<n>"). Code, firmware and protocol keep `capture`/`CAPTURE`.
+- **Oscilloscope panel** (`#scopeSection`, heading "Oscilloscope") sits at the top, above Pins. It is shown
   whenever a board is connected: with a hint until a pin is set to Capture, or, if
   `hello.capturePeriodUs` is 0 (old firmware or a board without capture), a note to re-upload. Drawing is roll mode: newest sample at the right edge.
 - **Generator panel** (`#genSection`, `section.gen`) sits right under Capture. It is a placeholder for

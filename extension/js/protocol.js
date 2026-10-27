@@ -20,7 +20,7 @@ export const STATUS_TEXT = Object.freeze({
 });
 
 export const MODE = Object.freeze({ INPUT: 0, PULLUP: 1, OUTPUT: 2, PWM: 3, ANALOG: 4, CAPTURE: 5 });
-export const MODE_NAME = Object.freeze(['Input', 'Pull-up', 'Output', 'PWM', 'Analog', 'Capture']);
+export const MODE_NAME = Object.freeze(['Input', 'Pull-up', 'Output', 'PWM', 'Analog', 'Oscilloscope']);   // mode 5 is CAPTURE on the wire
 
 export const CAP = Object.freeze({ DIN: 0x01, DOUT: 0x02, PWM: 0x04, ADC: 0x08, PULLUP: 0x10, CAPTURE: 0x20, RESERVED: 0x80 });
 

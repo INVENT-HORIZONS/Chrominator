@@ -56,7 +56,7 @@ button.small { font-size: 11px; margin-left: 6px; }
 .sectionhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .pinlist { display: flex; flex-direction: column; }
-.pin { display: grid; grid-template-columns: 38px 82px minmax(0, 1fr); gap: 8px; align-items: center;
+.pin { display: grid; grid-template-columns: 38px 112px minmax(0, 1fr); gap: 8px; align-items: center;
        padding: 5px 2px; border-top: 1px solid var(--border); min-height: 34px; }
 .pin:first-child { border-top: none; }
 .pin .label { font: 600 13px Consolas, monospace; }
