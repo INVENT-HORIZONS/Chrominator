@@ -1,0 +1,32 @@
+/* UART terminal window. Colours come from sidepanel.css: TX text var(--uart-tx), RX var(--uart-rx). */
+body.term { height: 100vh; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.termbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+.termbar .eye { width: 10px; height: 10px; }
+.termtitle { font-size: 13px; letter-spacing: .5px; }
+.spacer { flex: 1; }
+.chip { font: 600 11px Consolas, monospace; padding: 2px 8px; border-radius: 10px; background: var(--track); color: var(--muted); }
+.chip.tx.on { background: var(--uart-tx); color: #fff; }
+.chip.rx.on { background: var(--uart-rx); color: #fff; }
+.cfg { font: 12px Consolas, monospace; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; padding: 3px 10px; font-size: 12px; background: var(--panel); color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.termbar > button { padding: 3px 10px; font-size: 12px; }
+.term .banner { margin: 8px 10px 0; }
+.termout { flex: 1; overflow-y: auto; margin: 0; padding: 8px 10px; background: var(--scope-bg);
+  font: 13px/1.35 Consolas, "Cascadia Mono", monospace; white-space: pre-wrap; word-break: break-all; outline: none; }
+.termout .ln { min-height: 1.35em; }
+.termout .tx { color: var(--uart-tx); }
+.termout .rx { color: var(--uart-rx); }
+.termout .cc { opacity: .6; font-size: 11px; }   /* control byte, e.g. ‹01› */
+.termout .dir { opacity: .55; margin-right: 8px; user-select: none; }
+.termout .asc { opacity: .7; margin-left: 12px; }
+.termsend { display: flex; gap: 6px; padding: 8px 10px 4px; border-top: 1px solid var(--border); background: var(--panel); align-items: center; }
+.termsend input[type=text] { flex: 1; min-width: 0; font: 13px Consolas, monospace; padding: 5px 8px; color: var(--uart-tx);
+  background: var(--scope-bg); border: 1px solid var(--border); border-radius: 4px; }
+.termsend input[type=text]:disabled { opacity: .5; }
+.termsend select { font: inherit; padding: 4px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; }
+.hexsend { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; }
+.termhint { padding: 0 10px 6px; font-size: 11px; color: var(--muted); background: var(--panel); min-height: 1.4em; }
+.termhint.err { color: var(--err); }

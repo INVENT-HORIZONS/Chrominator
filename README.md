@@ -61,9 +61,12 @@ it's disconnected, not as a fast oscilloscope.
 
 **UART.** Above the I²C Port, the Nano R4's UART (`Serial1`): **RX on D0**, **TX on D1**. RX and TX
 are independent: pick **UART RX** in D0's dropdown or **UART TX** in D1's (or use the panel's RX/TX
-switches), and the other pin stays free for anything else, since often only TX is used. Baud and
-frame-format settings are there, but sending and receiving data isn't implemented yet. (On the Uno
-R3, D0/D1 carry the USB link, so there is no free UART.)
+switches), and the other pin stays an ordinary pin for anything else, since often only TX is used.
+In UART mode the pin's label turns **green (RX)** or **red (TX)**. Set the baud (up to 115200) and
+format (8N1, 8N2, 8E1, 8E2, 8O1, 8O2) in the panel, and click **Terminal…** for a terminal window,
+Tera Term style: data sent on TX in red, data received on RX in green, a Text/Hex view, and a send
+box (Enter to send, with a choice of line ending, or raw hex bytes). (On the Uno R3, D0/D1 carry the
+USB link, so there is no free UART.)
 
 **I²C Port and SPI Port.** Below the pins, each bus has its own panel: switch on **I²C** (SDA A4,
 SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and

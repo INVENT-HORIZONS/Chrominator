@@ -2,6 +2,7 @@
 // Chrome extension over USB serial. Protocol: docs/PROTOCOL.md (version 2).
 //
 // Boards: Arduino Nano R4 and Uno R3 (tested); Uno R4 Minima/WiFi in board_config.h (untested).
+// Nano R4 also bridges its UART (Serial1, D0 RX / D1 TX) to the extension's terminal.
 // Serial: 115200 8N1. Do not use Serial for anything else (no Serial.print debugging):
 // every byte on the port must be a protocol frame.
 
@@ -10,7 +11,7 @@
 // ---------------- Protocol constants ----------------
 #define PROTO_VERSION     2
 #define FW_MAJOR          1
-#define FW_MINOR          5
+#define FW_MINOR          6
 
 #define SOF               0xA5
 #define MAX_DATA          48
@@ -20,13 +21,15 @@
 enum Cmd : uint8_t {
   CMD_PING = 0x01, CMD_HELLO = 0x02, CMD_GET_CAPS = 0x03, CMD_GET_CONFIG = 0x04,
   CMD_SET_MODE = 0x10, CMD_WRITE = 0x11, CMD_READ_ALL = 0x12, CMD_RESET_PINS = 0x13,
-  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62
+  CMD_UART_CONFIG = 0x20, CMD_UART_TX = 0x21,
+  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62, EVT_UART_RX = 0x63
 };
 enum Status : uint8_t {
   ST_OK = 0, ST_UNKNOWN_CMD = 1, ST_BAD_LENGTH = 2, ST_BAD_PIN = 3, ST_BAD_MODE = 4,
-  ST_BAD_VALUE = 5, ST_RESERVED_PIN = 6, ST_WRONG_MODE = 7
+  ST_BAD_VALUE = 5, ST_RESERVED_PIN = 6, ST_WRONG_MODE = 7, ST_BUSY = 8
 };
-enum Mode : uint8_t { M_INPUT = 0, M_PULLUP = 1, M_OUTPUT = 2, M_PWM = 3, M_ANALOG = 4, M_CAPTURE = 5 };
+enum Mode : uint8_t { M_INPUT = 0, M_PULLUP = 1, M_OUTPUT = 2, M_PWM = 3, M_ANALOG = 4, M_CAPTURE = 5,
+                     M_UART_RX = 6, M_UART_TX = 7 };
 
 #define FLAG_FAILSAFE     0x01
 #define FLAG_NEEDS_HELLO  0x02
@@ -72,6 +75,8 @@ static void sendFrame(uint8_t seq, uint8_t cmd, const uint8_t *data, uint8_t len
 
 #include "capture.h"     // analog Capture engine; uses sendFrame() and pinMode_[]
 
+#include "uart.h"        // UART bridge (Serial1 <-> extension terminal); uses sendFrame() and pinMode_[]
+
 // Reply helpers: tx[0] is the status byte
 static void txBegin(uint8_t status) { tx[0] = status; txLen = 1; }
 static void txU8(uint8_t v)  { if (txLen < MAX_DATA) tx[txLen++] = v; }
@@ -86,10 +91,12 @@ static void applyMode(uint8_t pin, uint8_t mode) {
     case M_PULLUP: pinMode(pin, INPUT_PULLUP); break;
     case M_OUTPUT:
     case M_PWM:    pinMode(pin, OUTPUT); break;
-    default:       pinMode(pin, INPUT); break;   // INPUT, ANALOG and CAPTURE
+    default:       pinMode(pin, INPUT); break;   // INPUT, ANALOG, CAPTURE (and UART until uartApply())
   }
+  uint8_t was = pinMode_[pin];
   pinMode_[pin] = mode;
   pinValue[pin] = 0;
+  if (was == M_UART_RX || was == M_UART_TX || mode == M_UART_RX || mode == M_UART_TX) uartApply();
 }
 
 static void safeState() {
@@ -109,6 +116,8 @@ static bool modeAllowed(uint8_t pin, uint8_t mode) {
     case M_PWM:    return c & CAP_PWM;
     case M_ANALOG: return c & CAP_ADC;
     case M_CAPTURE: return c & CAP_CAPTURE;
+    case M_UART_RX: return uartPinIs(pin, mode);
+    case M_UART_TX: return uartPinIs(pin, mode);
     default:       return false;
   }
 }
@@ -208,6 +217,15 @@ static void handleFrame() {
       txBegin(ST_OK);
       break;
 
+    case CMD_UART_CONFIG:                // baud u32, format u8 (index into UART_FORMATS)
+      if (len != 5) { txBegin(ST_BAD_LENGTH); break; }
+      txBegin(uartConfigure((uint32_t)d[0] | ((uint32_t)d[1] << 8) | ((uint32_t)d[2] << 16) | ((uint32_t)d[3] << 24), d[4]));
+      break;
+
+    case CMD_UART_TX:                    // bytes to send on TX (queued; sent from loop())
+      txBegin(uartQueue(d, len));
+      break;
+
     default:
       txBegin(ST_UNKNOWN_CMD);
       break;
@@ -262,6 +280,7 @@ void loop() {
 
   while (Serial.available() > 0) rxByte((uint8_t)Serial.read());
   capService();
+  uartService();
 
   // Link watchdog: host went quiet -> put every pin in the safe state.
   if (hostActive && (uint32_t)(millis() - lastFrameMs) > LINK_TIMEOUT_MS) {

@@ -6,7 +6,7 @@
 
 import {
   CMD, REPLY, FLAG, STATUS_TEXT, encodeFrame, FrameParser,
-  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll, decodeCapture, PROTO_VERSION
+  decodePing, decodeHello, decodeCaps, decodeConfig, decodeReadAll, decodeCapture, PROTO_VERSION, MAX_DATA
 } from './protocol.js';
 
 export const LINK = Object.freeze({ CONNECTING: 'connecting', UP: 'up', LOST: 'lost', STOPPED: 'stopped' });
@@ -96,6 +96,24 @@ export class ChrominatorLink extends EventTarget {
     this.board.config[pin].value = value;
   }
 
+  // UART: baud and frame format (index into UART_FORMATS). Idempotent, so it is retried.
+  async uartConfig(baud, format) {
+    await this.request(CMD.UART_CONFIG, [baud & 0xFF, (baud >> 8) & 0xFF, (baud >> 16) & 0xFF, (baud >>> 24) & 0xFF, format], this.opt.retries);
+  }
+
+  // UART: send bytes on TX. Sent in frames of up to 48 bytes; NOT retried on a timeout (a retry
+  // could send the bytes twice). If the board's queue is full (BUSY) it waits and tries again.
+  async uartSend(bytes) {
+    for (let i = 0; i < bytes.length; ) {
+      const chunk = Array.from(bytes.slice(i, i + MAX_DATA));
+      try { await this.request(CMD.UART_TX, chunk, 0); i += chunk.length; }
+      catch (e) {
+        if (e instanceof ProtocolError && e.status === 8) { await sleep(30); continue; }
+        throw e;
+      }
+    }
+  }
+
   async resetPins() {
     await this.request(CMD.RESET_PINS, [], this.opt.retries);
     this.board.config = decodeConfig(await this.request(CMD.GET_CONFIG));
@@ -160,6 +178,7 @@ export class ChrominatorLink extends EventTarget {
       this.#emit('capture', c);
       return;
     }
+    if (cmd === CMD.EVT_UART_RX) { this.#emit('uart-rx', data); return; }
     if (cmd === CMD.EVT_BOOT) {
       this.capLastBlock.clear();
       this.#log('warn', 'Board reset (boot message received).');

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chrominator UART Terminal</title>
+<link rel="stylesheet" href="sidepanel.css">
+<link rel="stylesheet" href="terminal.css">
+<script src="js/theme.js"></script>
+</head>
+<body class="term">
+<header class="termbar">
+  <span class="eye on" aria-hidden="true"></span>
+  <b class="termtitle">UART Terminal</b>
+  <span class="chip tx" id="chipTx" title="TX pin: data sent from this terminal">TX D1 off</span>
+  <span class="chip rx" id="chipRx" title="RX pin: data received by the board">RX D0 off</span>
+  <span class="cfg" id="cfg">—</span>
+  <span class="spacer"></span>
+  <span class="seg" role="group" aria-label="Display">
+    <button id="viewText" type="button" aria-pressed="true">Text</button>
+    <button id="viewHex" type="button" aria-pressed="false">Hex</button>
+  </span>
+  <button id="btnClear" type="button">Clear</button>
+</header>
+<div class="banner" id="offline" hidden>Not connected. Open Chrominator's side panel and connect to the board; the UART settings and RX/TX switches are in its UART panel.</div>
+<main id="out" class="termout" tabindex="0" aria-live="off"></main>
+<footer class="termsend">
+  <input id="line" type="text" spellcheck="false" autocomplete="off" placeholder="Type and press Enter to send on TX">
+  <label class="hexsend" title="Send hex bytes, e.g. 48 65 6C 6C 6F"><input type="checkbox" id="sendHex"> Hex</label>
+  <select id="eol" title="Line ending added when sending text">
+    <option value="">No line ending</option><option value="\r">CR</option><option value="\n">LF</option><option value="\r\n" selected>CR+LF</option>
+  </select>
+  <button id="btnSend" class="primary" type="button">Send</button>
+</footer>
+<div class="termhint" id="hint"></div>
+<script type="module" src="js/terminal.js"></script>
+</body>
+</html>

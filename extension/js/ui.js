@@ -1,5 +1,6 @@
 // Chrominator side panel UI: connection handling and the pin table.
-import { MODE, MODE_NAME, CAP, pinLabel } from './protocol.js';
+import { MODE, MODE_NAME, CAP, UART_FORMATS, pinLabel } from './protocol.js';
+import { TerminalBridge } from './termbridge.js';
 import { ChrominatorLink, LINK } from './link.js';
 import { SerialTransport, choosePort, lastUsedPort, describePort } from './serial.js';
 import { Scope, TRACE_COLORS } from './scope.js';
@@ -23,22 +24,23 @@ let buses = HEADER_BUSES;
 const BOARD_DAC = { 2: '12-bit DAC on A0', 3: '12-bit DAC on A0', 4: '12-bit DAC on A0' };
 const busOn = { i2c: false, spi: false };     // UI state only for now; the board isn't told yet
 
-// UART pins by board ID. On the Uno R4s and Nano R4, USB is native, so Serial1 is free on D0 (RX)
-// and D1 (TX). On the Uno R3 those pins carry the USB link (RESERVED), so there's no UART here.
-// RX and TX are switched on independently (often only TX is used and RX's pin does something else).
-// UI state only for now: the pin is put back to a plain input on the board and nothing is sent.
+// UART pins by board ID (Uno R4s and Nano R4: Serial1 on D0 RX / D1 TX; USB is native, so they're free).
+// The board owns the state: a pin is in UART mode when its mode is UART_RX / UART_TX (protocol), and
+// the board only accepts those modes on pins whose caps have CAP.UART (Nano R4 firmware 1.6+).
+// RX and TX are independent: often only TX is used and RX's pin does something else.
 const HEADER_UART = { rx: 0, tx: 1 };
 const BOARD_UART = { 2: HEADER_UART, 3: HEADER_UART, 4: HEADER_UART };
-let uart = null;                                    // { rx: pin, tx: pin } for this board, or null
-const uartOn = { rx: false, tx: false };
+let uart = null;                                    // { rx: pin, tx: pin } if this board can do UART, else null
 const UART_ROLE = { rx: 'RX', tx: 'TX' };
 const UART_ID = { rx: 'Rx', tx: 'Tx' };          // element ids: uartRxOn, uartTxRow, uartRxPin…
+const UART_MODE = { rx: MODE.UART_RX, tx: MODE.UART_TX };
+const UART_PREFS = 'chrominator.uart';            // { baud, format } remembered per viewer
 
 function uartRole(pin) {
-  if (!uart) return null;
-  for (const r of ['rx', 'tx']) if (uartOn[r] && uart[r] === pin) return r;
-  return null;
+  const m = link?.board?.config[pin]?.mode;
+  return m === MODE.UART_RX ? 'rx' : m === MODE.UART_TX ? 'tx' : null;
 }
+function uartIsOn(r) { return !!uart && link?.board?.config[uart[r]]?.mode === UART_MODE[r]; }
 
 function busOwner(pin) {
   for (const [id, bus] of Object.entries(buses)) {
@@ -65,6 +67,22 @@ function syncTimebase() {
 $('tbLess').addEventListener('click', () => stepTimebase(-1));
 $('tbMore').addEventListener('click', () => stepTimebase(1));
 syncTimebase();
+
+// Terminal window: TX (red) and RX (green) traffic of the UART. The side panel owns the serial link;
+// the window talks to it through TerminalBridge (BroadcastChannel).
+const term = new TerminalBridge({
+  status: () => ({
+    connected: !!(link?.board && uart),
+    rx: uartIsOn('rx'), tx: uartIsOn('tx'),
+    rxPin: uart ? pinLabel(uart.rx, rows[uart.rx]?.caps) : 'D0',
+    txPin: uart ? pinLabel(uart.tx, rows[uart.tx]?.caps) : 'D1',
+    baud: +$('uartBaud').value, format: UART_FORMATS[+$('uartFormat').value] || '8N1'
+  }),
+  send: async bytes => {
+    if (!uartIsOn('tx')) throw new Error('UART TX is off');
+    await link.uartSend(bytes);
+  }
+});
 
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
@@ -164,6 +182,7 @@ async function connect(forceChoose = false) {
     link.addEventListener('inputs', e => updateInputs(e.detail));
     link.addEventListener('ping', e => onPing(e.detail));
     link.addEventListener('capture', e => scope.add(e.detail));
+    link.addEventListener('uart-rx', e => term.data('rx', e.detail));
     try {
       await link.start();
     } catch (e) {
@@ -190,6 +209,8 @@ async function disconnect(say = true) {
   $('pinsSection').hidden = true;
   for (const sec of document.querySelectorAll('section.buses')) sec.hidden = true;
   $('genSection').hidden = true;
+  uart = null;
+  syncUartControls();
   $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
@@ -232,16 +253,8 @@ function buildPins({ hello, caps, config }) {
                        [MODE.PWM, CAP.PWM], [MODE.ANALOG, CAP.ADC], [MODE.CAPTURE, CAP.CAPTURE]];
       for (const [m, need] of allowed) if (c.caps & need) select.add(new Option(MODE_NAME[m], m));
       const ub = BOARD_UART[hello.boardId];
-      for (const r of ['rx', 'tx']) if (ub && ub[r] === pin) select.add(new Option(`UART ${UART_ROLE[r]}`, `uart-${r}`));
-      select.addEventListener('change', () => {
-        const v = select.value;
-        if (v.startsWith('uart-')) setUart(v.slice(5), true);
-        else {
-          const r = uartRole(pin);
-          if (r) setUart(r, false);
-          changeMode(pin, +v);
-        }
-      });
+      if (ub && (c.caps & CAP.UART)) for (const r of ['rx', 'tx']) if (ub[r] === pin) select.add(new Option(MODE_NAME[UART_MODE[r]], UART_MODE[r]));
+      select.addEventListener('change', () => changeMode(pin, +select.value));
     }
     return row;
   });
@@ -252,14 +265,16 @@ function buildPins({ hello, caps, config }) {
     $(`${id}Pins`).textContent = bus.pins.map(([p, role]) => `${role}\u00A0${pinLabel(p, caps[p])}`).join(' · ');
     syncBusControls(id);
   }
-  uart = BOARD_UART[hello.boardId] || null;
-  if (!uart) { uartOn.rx = false; uartOn.tx = false; }
+  uart = BOARD_UART[hello.boardId] && caps[BOARD_UART[hello.boardId].rx]?.caps & CAP.UART ? BOARD_UART[hello.boardId] : null;
   for (const r of ['rx', 'tx']) {
     $(`uart${UART_ID[r]}Pin`).textContent = uart ? pinLabel(uart[r], caps[uart[r]]) : '—';
   }
   $('uartNote').textContent = uart
-    ? 'RX and TX are independent: turn on just TX and RX\'s pin stays free for anything else. Sending and receiving data isn\'t wired up yet.'
-    : `${hello.boardName}: D0/D1 carry the USB link, so there is no free UART.`;
+    ? 'RX and TX are independent: turn on just TX and RX\'s pin stays free for anything else. Open the terminal to see the traffic: TX in red, RX in green.'
+    : BOARD_UART[hello.boardId]
+      ? `${hello.boardName} firmware ${hello.fwMajor}.${hello.fwMinor} has no UART bridge. Upload the sketch from this version of Chrominator.`
+      : `${hello.boardName}: D0/D1 carry the USB link, so there is no free UART.`;
+  if (uart) sendUartConfig();
   syncUartControls();
   for (const sec of document.querySelectorAll('section.buses')) sec.hidden = false;
   // Generator (DAC) panel: a placeholder for now; nothing drives the DAC yet.
@@ -279,28 +294,41 @@ function syncBusControls(id) {
 
 function syncUartControls() {
   for (const r of ['rx', 'tx']) {
-    $(`uart${UART_ID[r]}On`).checked = uartOn[r];
+    $(`uart${UART_ID[r]}On`).checked = uartIsOn(r);
     $(`uart${UART_ID[r]}On`).disabled = !uart;
-    $(`uart${UART_ID[r]}Row`).classList.toggle('on', uartOn[r]);
+    $(`uart${UART_ID[r]}Row`).classList.toggle('on', uartIsOn(r));
   }
-  const any = uartOn.rx || uartOn.tx;
-  $('uartBaud').disabled = !any; $('uartFormat').disabled = !any;
+  $('uartBaud').disabled = !uart; $('uartFormat').disabled = !uart;
+  $('uartTerm').disabled = !uart;
+  term.status();
+}
+
+function loadUartPrefs() {
+  try { const p = JSON.parse(localStorage.getItem(UART_PREFS)); if (p) { $('uartBaud').value = p.baud; $('uartFormat').value = p.format; } } catch {}
+  if (!$('uartBaud').value) $('uartBaud').value = '9600';
+  if (!$('uartFormat').value) $('uartFormat').value = '0';
+}
+async function sendUartConfig() {
+  const baud = +$('uartBaud').value, format = +$('uartFormat').value;
+  try { localStorage.setItem(UART_PREFS, JSON.stringify({ baud, format })); } catch {}
+  term.status();
+  if (!uart || !link?.board) return;
+  try { await link.uartConfig(baud, format); }
+  catch (e) { log('error', `UART: could not set ${baud} ${UART_FORMATS[format]}: ${e.message}`); }
 }
 
 // Switch the UART's RX or TX on or off. Only that one pin is affected.
+// (The board switches the UART itself when the pin's mode changes; off means back to a plain input.)
 async function setUart(r, on) {
-  if (!uart) return;
+  if (!uart || !link?.board) return;
   const pin = uart[r], label = pinLabel(pin, rows[pin]?.caps);
-  if (on && link?.board && link.board.config[pin].mode !== MODE.INPUT) {
-    // Hand the pin over in a known state: anything driving or capturing goes back to a plain input.
-    try { await link.setMode(pin, MODE.INPUT); }
-    catch (e) { log('error', `UART ${UART_ROLE[r]}: could not release ${label}: ${e.message}`); }
+  try {
+    await link.setMode(pin, on ? UART_MODE[r] : MODE.INPUT);
+    log('info', on ? `UART ${UART_ROLE[r]} on (${label}).` : `UART ${UART_ROLE[r]} off: ${label} is a plain input again.`);
+  } catch (e) {
+    log('error', `UART ${UART_ROLE[r]}: could not switch ${on ? 'on' : 'off'}: ${e.message}`);
+    syncUartControls();
   }
-  uartOn[r] = on;
-  syncUartControls();
-  if (rows[pin]) rows[pin].kind = null;                                  // force the row to redraw
-  if (link?.board) renderAllPins(link.board.config);
-  log('info', on ? `UART ${UART_ROLE[r]} on: ${label} reserved for it.` : `UART ${UART_ROLE[r]} off: ${label} available again.`);
 }
 
 async function setBus(id, on) {
@@ -323,6 +351,7 @@ async function setBus(id, on) {
 
 function renderAllPins(config) {
   config.forEach((cfg, pin) => { if (rows[pin] && !(rows[pin].caps.caps & CAP.RESERVED)) renderPin(pin, cfg); });
+  syncUartControls();
   // The Capture panel shows every ADC channel in Capture mode, overlaid. It is always visible while
   // connected: with a hint until a pin is set to Capture, or a note if the firmware can't capture.
   const capturing = config.flatMap((cfg, pin) =>
@@ -333,16 +362,20 @@ function renderAllPins(config) {
 
 function renderPin(pin, { mode, value }) {
   const row = rows[pin];
-  // A UART pin: the dropdown shows UART RX/TX (and stays usable to switch it back).
-  const ur = uartRole(pin);
+  // A UART pin: label and badge turn TX red / RX green (same colours as the terminal); the dropdown
+  // stays usable to switch it back to GPIO.
+  const ur = mode === MODE.UART_RX ? 'rx' : mode === MODE.UART_TX ? 'tx' : null;
+  const label = row.el.querySelector('.label');
+  label.classList.toggle('uart-rx', ur === 'rx');
+  label.classList.toggle('uart-tx', ur === 'tx');
   if (ur) {
     row.el.classList.remove('onbus');
     row.select.disabled = false;
-    row.select.value = `uart-${ur}`;
-    if (row.kind === `uart:${ur}`) return;
-    row.kind = `uart:${ur}`;
+    row.select.value = mode;
+    if (row.kind === mode) return;
+    row.kind = mode;
     row.refs = {};
-    row.ctl.replaceChildren(el('span', 'busrole', `UART ${UART_ROLE[ur]}`));
+    row.ctl.replaceChildren(el('span', `busrole uart-${ur}`, `UART ${UART_ROLE[ur]}`));
     return;
   }
   row.select.value = mode;
@@ -535,6 +568,10 @@ function initCollapsibles() {
 }
 initCollapsibles();
 
+loadUartPrefs();
+$('uartBaud').addEventListener('change', sendUartConfig);
+$('uartFormat').addEventListener('change', sendUartConfig);
+$('uartTerm').addEventListener('click', () => term.open());
 $('uartRxOn').addEventListener('change', e => setUart('rx', e.target.checked));
 $('uartTxOn').addEventListener('change', e => setUart('tx', e.target.checked));
 $('i2cOn').addEventListener('change', e => setBus('i2c', e.target.checked));

@@ -10,19 +10,24 @@ export const BYTE_TIMEOUT_MS = 50;
 export const CMD = Object.freeze({
   PING: 0x01, HELLO: 0x02, GET_CAPS: 0x03, GET_CONFIG: 0x04,
   SET_MODE: 0x10, WRITE: 0x11, READ_ALL: 0x12, RESET_PINS: 0x13,
-  EVT_BOOT: 0x60, EVT_FAILSAFE: 0x61, EVT_CAPTURE: 0x62
+  UART_CONFIG: 0x20, UART_TX: 0x21,
+  EVT_BOOT: 0x60, EVT_FAILSAFE: 0x61, EVT_CAPTURE: 0x62, EVT_UART_RX: 0x63
 });
 export const REPLY = 0x80;
 
 export const STATUS_TEXT = Object.freeze({
   0: 'OK', 1: 'Unknown command', 2: 'Bad length', 3: 'Bad pin', 4: 'Mode not supported on this pin',
-  5: 'Value out of range', 6: 'Pin is reserved by the board', 7: 'Pin is not an output'
+  5: 'Value out of range', 6: 'Pin is reserved by the board', 7: 'Pin is not an output', 8: 'Board busy'
 });
 
-export const MODE = Object.freeze({ INPUT: 0, PULLUP: 1, OUTPUT: 2, PWM: 3, ANALOG: 4, CAPTURE: 5 });
-export const MODE_NAME = Object.freeze(['Input', 'Pull-up', 'Output', 'PWM', 'Analog', 'Oscilloscope']);   // mode 5 is CAPTURE on the wire
+export const MODE = Object.freeze({ INPUT: 0, PULLUP: 1, OUTPUT: 2, PWM: 3, ANALOG: 4, CAPTURE: 5, UART_RX: 6, UART_TX: 7 });
+export const MODE_NAME = Object.freeze(['Input', 'Pull-up', 'Output', 'PWM', 'Analog', 'Oscilloscope', 'UART RX', 'UART TX']);   // mode 5 is CAPTURE on the wire
 
-export const CAP = Object.freeze({ DIN: 0x01, DOUT: 0x02, PWM: 0x04, ADC: 0x08, PULLUP: 0x10, CAPTURE: 0x20, RESERVED: 0x80 });
+export const CAP = Object.freeze({ DIN: 0x01, DOUT: 0x02, PWM: 0x04, ADC: 0x08, PULLUP: 0x10, CAPTURE: 0x20, UART: 0x40, RESERVED: 0x80 });
+
+// UART frame formats, by the index sent in UART_CONFIG (8 data bits only on the R4 core).
+export const UART_FORMATS = Object.freeze(['8N1', '8N2', '8E1', '8E2', '8O1', '8O2']);
+export const STATUS = Object.freeze({ OK: 0, WRONG_MODE: 7, BUSY: 8 });
 
 export const FLAG = Object.freeze({ FAILSAFE: 0x01, NEEDS_HELLO: 0x02 });
 

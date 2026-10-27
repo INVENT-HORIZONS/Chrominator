@@ -152,6 +152,61 @@ await test('capture stops on All pins safe', async () => {
   assert.equal(link.stats.captureBlocks, n);
 });
 
+
+await test('UART: D0/D1 advertise UART; UART modes refused on other pins and bad baud refused', async () => {
+  const { caps } = link.board;
+  assert.ok(caps[0].caps & CAP.UART && caps[1].caps & CAP.UART);
+  assert.ok(!(caps[2].caps & CAP.UART));
+  await assert.rejects(link.setMode(2, MODE.UART_TX), e => e instanceof ProtocolError && e.status === 4);
+  await assert.rejects(link.setMode(1, MODE.UART_RX), e => e instanceof ProtocolError && e.status === 4);
+  await assert.rejects(link.uartConfig(230400, 0), e => e instanceof ProtocolError && e.status === 5);
+  await link.uartConfig(115200, 0);
+});
+
+await test('UART: TX only — bytes go out on D1, D0 keeps working as a GPIO output', async () => {
+  const rx = []; const onRx = e => rx.push(...e.detail); link.addEventListener('uart-rx', onRx);
+  await link.setMode(0, MODE.OUTPUT); await link.write(0, 1);
+  const mark = tr.pinLog.length;
+  await link.setMode(1, MODE.UART_TX);
+  await waitFor(() => tr.pinLog.slice(mark).includes('UART1 BEGIN 115200 6'), 500, 'UART1 BEGIN');
+  // begin() takes both pins; D0 must be handed back as an output, still HIGH
+  const after = tr.pinLog.slice(tr.pinLog.lastIndexOf('UART1 BEGIN 115200 6'));
+  assert.ok(after.includes('PINMODE 0 1') && after.includes('WRITE 0 1'), 'D0 restored as output HIGH');
+  await link.uartSend(new TextEncoder().encode('Hi'));
+  await waitFor(() => tr.pinLog.includes('UART1 TX 48') && tr.pinLog.includes('UART1 TX 69'), 500, 'TX bytes');
+  await sleep(100);
+  assert.equal(rx.length, 0, 'RX off: loopback bytes are not forwarded');
+  link.removeEventListener('uart-rx', onRx);
+});
+
+await test('UART: RX on too — data sent on TX comes back on RX (loopback), in order', async () => {
+  const rx = []; const onRx = e => rx.push(...e.detail); link.addEventListener('uart-rx', onRx);
+  await link.setMode(0, MODE.UART_RX);
+  const msg = Array.from({ length: 300 }, (_, i) => 32 + (i % 90));   // > board queue: exercises BUSY
+  await link.uartSend(msg);
+  await waitFor(() => rx.length >= msg.length, 3000, `RX ${rx.length}/${msg.length}`);
+  assert.deepEqual(rx, msg);
+  assert.equal(link.state, LINK.UP);
+  link.removeEventListener('uart-rx', onRx);
+});
+
+await test('UART: sending with TX off is refused; RX off leaves TX running', async () => {
+  await link.setMode(0, MODE.INPUT);                  // RX off
+  assert.ok(!tr.pinLog.includes('UART1 DOUBLE-BEGIN'));
+  await link.uartSend([0x41]);                        // TX still on
+  await link.setMode(1, MODE.INPUT);                  // TX off -> UART stopped
+  await waitFor(() => tr.pinLog[tr.pinLog.length - 1] !== undefined && tr.pinLog.includes('UART1 END'), 500, 'UART1 END');
+  await assert.rejects(link.uartSend([0x41]), e => e instanceof ProtocolError && e.status === 7);
+});
+
+await test('UART: All pins safe switches it off', async () => {
+  await link.setMode(1, MODE.UART_TX);
+  const n = tr.pinLog.filter(l => l === 'UART1 END').length;
+  await link.resetPins();
+  assert.equal(link.board.config[1].mode, MODE.INPUT);
+  assert.equal(tr.pinLog.filter(l => l === 'UART1 END').length, n + 1);
+});
+
 await test('All pins safe returns every pin to Input', async () => {
   await link.resetPins();
   assert.ok(link.board.config.every(c => c.mode === MODE.INPUT));

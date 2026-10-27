@@ -41,6 +41,23 @@ unsigned long millis() {
 }
 
 SimSerial Serial;
+
+SimUart Serial1;
+static uint8_t uartLoop[1024];
+static unsigned uartHead = 0, uartTail = 0;
+void SimUart::begin(unsigned long baud, uint16_t config) {
+  if (open) { fprintf(stderr, "UART1 DOUBLE-BEGIN\n"); _exit(3); }    // the real core hangs here
+  open = true; uartHead = uartTail = 0;
+  fprintf(stderr, "UART1 BEGIN %lu %u\n", baud, config);
+}
+void SimUart::end() { if (open) fprintf(stderr, "UART1 END\n"); open = false; }
+int SimUart::available() { return open ? (int)((uartHead - uartTail) & 1023) : 0; }
+int SimUart::read() { if (!available()) return -1; int c = uartLoop[uartTail]; uartTail = (uartTail + 1) & 1023; return c; }
+size_t SimUart::write(uint8_t b) {
+  fprintf(stderr, "UART1 TX %02X\n", b);
+  uartLoop[uartHead] = b; uartHead = (uartHead + 1) & 1023;           // loopback D1 -> D0
+  return 1;
+}
 static int peeked = -1;
 void SimSerial::begin(unsigned long) { fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK); }
 int SimSerial::available() {

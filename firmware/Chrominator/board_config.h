@@ -10,6 +10,7 @@
 #define CAP_ADC       0x08
 #define CAP_PULLUP    0x10
 #define CAP_CAPTURE   0x20
+#define CAP_UART      0x40   // pin can be the UART's RX or TX (which one: UART_RX_PIN / UART_TX_PIN)
 #define CAP_RESERVED  0x80
 
 #define CAP_GPIO   (CAP_DIN | CAP_DOUT | CAP_PULLUP)
@@ -89,8 +90,13 @@
     #define CAPTURE_IMPL  CAPTURE_POLL
   #endif
 
+  // UART: Serial1 on D0 (RX) / D1 (TX). RX and TX are enabled independently (pin modes UART_RX /
+  // UART_TX); the half that is off stays an ordinary GPIO pin.
+  #define UART_PORT       Serial1
+  #define UART_RX_PIN     0
+  #define UART_TX_PIN     1
   static const uint8_t PIN_CAPS[NUM_PINS] = {
-    CAP_GPIO, CAP_GPIO,                  // D0 RX1, D1 TX1 (free: USB is native)
+    CAP_GPIO | CAP_UART, CAP_GPIO | CAP_UART,   // D0 RX1, D1 TX1 (free: USB is native)
     CAP_GPIO, CAP_GPWM, CAP_GPIO,        // D2, D3~, D4
     CAP_GPWM, CAP_GPWM, CAP_GPIO,        // D5~, D6~, D7
     CAP_GPIO, CAP_GPWM, CAP_GPWM,        // D8, D9~, D10~

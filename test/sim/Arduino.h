@@ -43,3 +43,22 @@ public:
   size_t write(const uint8_t *buf, size_t n);
 };
 extern SimSerial Serial;
+
+// Serial1 (the Nano R4's spare UART). The simulator wires TX back to RX, like a jumper from D1 to
+// D0, so tests can check both directions. Bytes sent are logged to stderr as "UART1 TX <hex>".
+#define SERIAL_8N1 0x06
+#define SERIAL_8N2 0x0E
+#define SERIAL_8E1 0x26
+#define SERIAL_8E2 0x2E
+#define SERIAL_8O1 0x36
+#define SERIAL_8O2 0x3E
+class SimUart {
+public:
+  void begin(unsigned long baud, uint16_t config);
+  void end();
+  int available();
+  int read();
+  size_t write(uint8_t b);
+  bool open = false;
+};
+extern SimUart Serial1;

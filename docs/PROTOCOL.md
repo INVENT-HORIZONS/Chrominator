@@ -58,7 +58,8 @@ reply is empty.
 | 4 | BAD_MODE | Mode not supported on this pin |
 | 5 | BAD_VALUE | Value out of range for the pin's mode |
 | 6 | RESERVED_PIN | Pin is used by the board itself (e.g. D0/D1 serial) |
-| 7 | WRONG_MODE | WRITE to a pin that is not in OUTPUT or PWM mode |
+| 7 | WRONG_MODE | WRITE to a pin that is not in OUTPUT or PWM mode; UART_TX while TX is off |
+| 8 | BUSY | UART_TX: the board's TX queue has no room; wait and send again |
 
 ## Pin model
 
@@ -75,6 +76,8 @@ Nano R4: D0–D13 = 0–13, A0–A7 = 14–21).
 | 3 | PWM | duty 0–255 |
 | 4 | ANALOG (ADC input) | — |
 | 5 | CAPTURE (ADC input, streamed — see *Capture*) | — |
+| 6 | UART_RX (the UART's RX pin — see *UART*) | — |
+| 7 | UART_TX (the UART's TX pin — see *UART*) | — |
 
 **Capability flags** (one byte per pin, from GET_CAPS)
 
@@ -86,6 +89,7 @@ Nano R4: D0–D13 = 0–13, A0–A7 = 14–21).
 | 3 | ADC |
 | 4 | PULLUP — has an internal pull-up |
 | 5 | CAPTURE — can stream samples in CAPTURE mode |
+| 6 | UART — can be the UART's RX or TX pin (Nano R4: D0 = RX, D1 = TX) |
 | 7 | RESERVED — used by the board, not controllable |
 
 The **safe state** is every non-reserved pin in INPUT mode with its output latch LOW
@@ -104,6 +108,8 @@ on RESET_PINS or failsafe.
 | 0x11 | WRITE | pin u8, value u8 | — |
 | 0x12 | READ_ALL | — | levels u32 (bit n = pin n), adc_count u8, adc_count × u16 raw readings by channel |
 | 0x13 | RESET_PINS | — | — |
+| 0x20 | UART_CONFIG | baud u32 (300–115200), format u8 | — |
+| 0x21 | UART_TX | 1–48 bytes to send | — (status BUSY if the queue is full) |
 
 **Board IDs:** 1 = Arduino Uno R3, 2 = Uno R4 Minima, 3 = Uno R4 WiFi, 4 = Arduino Nano R4.
 
@@ -128,6 +134,7 @@ Notes:
 | 0x60 | EVT_BOOT | proto u8, fw_major u8, fw_minor u8, board_id u8 |
 | 0x61 | EVT_FAILSAFE | — |
 | 0x62 | EVT_CAPTURE | block u16, adc_channel u8, count u8, bits u8, packed samples |
+| 0x63 | EVT_UART_RX | 1–32 bytes received on the UART's RX pin |
 
 EVT_BOOT is sent once when the firmware starts. EVT_FAILSAFE is sent when the link watchdog
 trips (the host may not receive it, which is why the PING flag also records it).
@@ -164,6 +171,28 @@ Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on 
 - **Bandwidth:** on the Uno each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s; all six channels
   use about 9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL. On the Nano R4
   each channel costs 24 bytes per 80 ms = 300 B/s, 2.4 kB/s for all eight.
+
+## UART
+
+Boards whose pins have the UART capability (Nano R4 firmware 1.6+: `Serial1`, **D0 = RX, D1 = TX**)
+bridge that UART to the host.
+
+- **RX and TX are independent.** SET_MODE D0 → UART_RX turns on receiving; SET_MODE D1 → UART_TX
+  turns on sending. Either can be on alone: the other pin stays an ordinary GPIO pin in whatever
+  mode it has (often only TX is used and RX's pin does something else). Any other mode on a UART
+  pin turns that half off; with both off the UART is stopped. Failsafe and RESET_PINS stop it.
+  UART_RX is only accepted on the RX pin and UART_TX only on the TX pin (else BAD_MODE).
+- **UART_CONFIG** sets baud and frame format at any time; a running UART restarts with the new
+  settings. Default after boot: 9600, 8N1. Baud is limited to **300–115200** (else BAD_VALUE), which
+  keeps the RX stream far below the USB link's capacity. Format codes (8 data bits only, the R4
+  core's limit): 0 = 8N1, 1 = 8N2, 2 = 8E1, 3 = 8E2, 4 = 8O1, 5 = 8O2.
+- **UART_TX** queues bytes (256-byte queue); the board sends them one per main-loop pass, so a slow
+  baud rate never stalls the link. It is **not idempotent**: the host must not retry it on a
+  timeout. If the queue is full the reply is BUSY and nothing is queued; the host waits and resends.
+  Status WRONG_MODE if TX is off.
+- **EVT_UART_RX** carries received bytes, sent when 32 have arrived or 5 ms after the first byte of
+  a partial chunk. Bytes received while RX is off are discarded. Bursts at 115200 are absorbed by
+  the board's RX buffer and drained over USB.
 
 ## Heartbeat and disconnection detection
 

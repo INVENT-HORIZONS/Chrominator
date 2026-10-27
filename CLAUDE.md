@@ -7,7 +7,8 @@ Guidance for working on Chrominator.
 A Chrome/Edge extension plus Arduino firmware for hardware debugging. The extension opens in the
 browser's **side panel** (so it stays open while the user browses), connects to the board over
 USB serial, and exposes the board's GPIO, PWM and ADC. The serial link is only transport: the
-user picks the port and never sees baud rates, a terminal, or protocol details.
+user picks the port and never sees the link's baud rate or protocol details. (The UART terminal is
+for the *board's* Serial1, not the link.)
 
 Target board: **Arduino Nano R4** (Renesas RA4M1, board ID 4, core `arduino:renesas_uno`, macro
 `ARDUINO_NANO_R4`; the core *also* defines `ARDUINO_UNOR4_MINIMA` for it, so the Nano R4 block in
@@ -41,6 +42,10 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/scope.js` | `Scope` (the Capture panel): per-channel sample store on the board's tick clock (block unwrap; samples per block taken from each frame), roll-mode canvas drawing, legend, CSV export, `TRACE_COLORS` (one per A0–A7). |
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
+| `extension/terminal.html` / `.css`, `js/terminal.js` | UART terminal window (TX red, RX green). |
+| `extension/js/termbridge.js` | Side-panel end of the terminal: BroadcastChannel relay + history. |
+| `extension/js/theme.js` | Applies the saved light/dark theme before first paint. |
+| `firmware/Chrominator/uart.h` | UART bridge (Serial1 ↔ extension), Nano R4. |
 | `test/sim/` | Fake Arduino core (`Arduino.h`, `avr/wdt.h`, `sim_main.cpp`) to run the firmware on a PC. |
 | `test/link.test.mjs`, `test/nanor4.test.mjs`, `test/run.sh` | End-to-end tests: real firmware (Uno and Nano R4 builds) vs real `protocol.js` + `link.js`. |
 
@@ -109,13 +114,25 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   UI reacts to events; it never parses frames itself.
 - Pin rows are built once per board (`buildPins`) from the board's capabilities, then updated in
   place (`renderPin` rebuilds a row's control only when its mode changes; `updateInputs` updates values).
-- **UART panel** (`#uartSection`, a `section.buses`, above I²C Port) is UI-only so far. `BOARD_UART` in
-  `ui.js`: Uno R4s and Nano R4 have Serial1 on D0 (RX) / D1 (TX); none on the Uno R3 (D0/D1
-  RESERVED). **RX and TX are independent** (user requirement: often only TX is used and RX's pin
-  does something else): `uartOn.rx` / `uartOn.tx`, set from the panel switches or from the pin's
-  dropdown option "UART RX"/"UART TX" (value `uart-rx`/`uart-tx`, not a protocol mode). Turning one
-  on puts only that pin back to INPUT on the board; the row stays selectable (`row.kind = 'uart:rx'`)
-  so picking another mode turns that half off. Baud/Format selects are placeholders.
+- **UART** (Nano R4 firmware 1.6+, `firmware/Chrominator/uart.h`): Serial1 on D0 (RX) / D1 (TX) is
+  bridged to the extension. Pin modes UART_RX (6) / UART_TX (7), cap bit CAP.UART (0x40),
+  UART_CONFIG (0x20), UART_TX (0x21), EVT_UART_RX (0x63), status BUSY (8); see *UART* in PROTOCOL.md.
+  **RX and TX are independent** (user requirement: often only TX is used and RX's pin does
+  something else): after `Serial1.begin()` (which grabs both pins) `uartRestoreGpio()` hands the
+  unused pin back with `pinMode()`. The board is the source of truth: the UI reads UART state from
+  the pin modes (`uartRole`, `uartIsOn`). **R4 core gotchas:** `UART::begin()` hangs if the UART is
+  already open (always `end()` first; the simulator exits with "UART1 DOUBLE-BEGIN" if not);
+  `UART::write()` blocks until sent, so TX bytes are queued and sent one per `loop()` pass; only
+  8-data-bit formats exist. Baud capped at 115200 (user's choice). UART_TX is never retried on timeout.
+- **UART panel / terminal**: `#uartSection` (a `section.buses`, above I²C Port) has RX/TX switches,
+  Baud/Format (sent with `link.uartConfig` on change and on connect; remembered in
+  `chrominator.uart`) and **Terminal…**, which opens `terminal.html` as a popup-type window
+  (`chrome.windows.create`, allowed: it's the extension's own window from a click). The side panel
+  owns the link; `js/termbridge.js` (`TerminalBridge`) relays over BroadcastChannel
+  `chrominator-uart` and keeps ~256 KB of history for a newly opened window. `js/terminal.js`:
+  TX text red, RX green (`--uart-tx` / `--uart-rx`, defined in all three theme blocks of
+  sidepanel.css), Text/Hex view, line ending, hex send. UART pin labels/badges use the same colours
+  (`.label.uart-tx/.uart-rx`) and return to the normal text colour as GPIO.
 - **I²C Port and SPI Port panels** (`#i2cSection`, `#spiSection`, both `section.buses`) are UI-only so far: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
   bus to its pins (I²C A4/A5; SPI D13/D11/D12/D10). Turning a bus on sets any of its pins that
   aren't INPUT back to INPUT (via SET_MODE), then `renderPin` shows them disabled with their role
