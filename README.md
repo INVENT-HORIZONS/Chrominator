@@ -79,7 +79,7 @@ bit-order settings are there, but sending and receiving data isn't implemented y
 controls yet.
 
 **Light / dark.** The ☀ Light / ☾ Dark switch next to Connect sets the colour theme and is remembered.
-Until you pick one, Chrominator follows the system setting.
+Dark is the default.
 
 Every panel folds up: click its heading (Oscilloscope, Generator, Pins, UART, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.

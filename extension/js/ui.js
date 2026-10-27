@@ -507,8 +507,8 @@ async function pwmSend(pin, value) {
 }
 
 // ---------------- light / dark theme ----------------
-// The ☀/☾ switch sets html[data-theme] and remembers it (js/theme.js applies it at load). Until the
-// user picks one, the panel follows the system setting, and the switch shows which one that is.
+// The ☀/☾ switch sets html[data-theme] and remembers it (js/theme.js applies it at load).
+// Dark is the default until the user picks one.
 const THEME_KEY = 'chrominator.theme';
 const systemDark = matchMedia('(prefers-color-scheme: dark)');
 function currentTheme() { return document.documentElement.dataset.theme || (systemDark.matches ? 'dark' : 'light'); }

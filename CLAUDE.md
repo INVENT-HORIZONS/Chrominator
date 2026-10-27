@@ -184,6 +184,7 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   unless `html[data-theme="light"]`, and always under `html[data-theme="dark"]` (keep the two dark
   blocks identical). The ☀/☾ switch (`setTheme` in `ui.js`) sets `data-theme` and saves
   `chrominator.theme`; `js/theme.js` (classic script in `<head>`) applies it before first paint.
+  **Dark is the default** (user's choice): with nothing saved, theme.js sets `data-theme="dark"`.
   Canvas colours are read from CSS on each draw; call `scope.redraw()` after a theme change.
   Fonts: Segoe UI / system-ui for UI, Consolas for numbers. The "eye" (red LED) is the heartbeat indicator.
 
