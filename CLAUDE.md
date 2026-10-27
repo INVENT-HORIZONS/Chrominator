@@ -43,7 +43,8 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `extension/terminal.html` / `.css`, `js/terminal.js` | UART terminal window (TX red, RX green). |
-| `extension/scope.html` / `scopewin.css`, `js/scopewin.js`, `js/scopebridge.js` | Pop-out oscilloscope window for one channel, and its side-panel relay. |
+| `extension/js/scopeview.js`, `js/scopebridge.js` | Pop-out oscilloscope view (PiP, always on top) and its side-panel relay. |
+| `extension/scope.html` / `scopewin.css`, `js/scopewin.js` | Fallback regular pop-out window (with Keep on top). |
 | `extension/js/termbridge.js` | Side-panel end of the terminal: BroadcastChannel relay + history. |
 | `extension/js/theme.js` | Applies the saved light/dark theme before first paint. |
 | `firmware/Chrominator/uart.h` | UART bridge (Serial1 ↔ extension), Nano R4. |
@@ -159,13 +160,21 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
 - **Pop-out oscilloscope** (experiment, user asked for A0 only: `POPOUT_CHANNELS = [0]` in `ui.js`):
-  in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button, which opens
-  `scope.html?ch=N` as a popup window (`ScopeBridge.open`; a second click focuses it). The window
-  (`js/scopewin.js`) runs its own `Scope` instance (own timebase/scale/pause/CSV; timebase saved as
-  `chrominator.popoutTimebase`) fed by `js/scopebridge.js` over BroadcastChannel `chrominator-scope`:
-  status every second (hello, active, net name), each block, and ~4096 blocks of history on `hello`.
-  The window ignores live blocks until its history arrives (an older block after a newer one
-  looks like a board restart to `Scope.add`). The side panel keeps drawing the channel as before.
+  in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button. **It must stay
+  on top of the browser** (user requirement). Extensions can't pin normal windows, so Pop out opens
+  a **Document Picture-in-Picture** window (`openPipScope` in `js/scopeview.js`, called from the
+  click in the side panel): Chrome keeps PiP windows above all others. Only ONE PiP window can exist
+  per browser; opening another replaces it. If PiP is refused, it falls back to a regular popup
+  window `scope.html?ch=N` (`ScopeBridge.open`) whose **📌 Keep on top** button moves the view into
+  PiP and minimizes itself (closing the PiP restores it).
+  `ScopeView` (js/scopeview.js) builds the whole view into any document and runs its own `Scope`
+  (own timebase/scale/pause/CSV; timebase saved as `chrominator.popoutTimebase`), fed by
+  `js/scopebridge.js` over BroadcastChannel `chrominator-scope`: views say hello/bye with an id;
+  the bridge sends status every second, each block for watched channels, and ~4096 blocks of
+  history on hello. A view ignores live blocks until its history arrives (an older block after a
+  newer one looks like a board restart to `Scope.add`). `Scope` takes window APIs (rAF,
+  ResizeObserver, getComputedStyle, createElement) from its canvas's own window, so it keeps
+  drawing in a PiP window even when the window running the code is hidden.
 - **Net names**: each pin row has `input.net` (4th grid column, 84px) for the circuit net it's wired
   to, max 16 chars, saved in localStorage `chrominator.netNames.<boardId>` ({ pin: name }).
   `scope.setNames(adcNames())` shows A-pin names in the Oscilloscope legend ("A0 VBAT") and CSV

@@ -2,6 +2,7 @@
 import { MODE, MODE_NAME, CAP, UART_FORMATS, pinLabel } from './protocol.js';
 import { TerminalBridge } from './termbridge.js';
 import { ScopeBridge } from './scopebridge.js';
+import { openPipScope } from './scopeview.js';
 import { ChrominatorLink, LINK } from './link.js';
 import { SerialTransport, choosePort, lastUsedPort, describePort } from './serial.js';
 import { Scope, TRACE_COLORS } from './scope.js';
@@ -99,6 +100,25 @@ const scopeBridge = new ScopeBridge({
     };
   }
 });
+
+// Pop out: an always-on-top Picture-in-Picture window if Chrome allows it from here, else a regular
+// window (which has its own "Keep on top" button). Chrome allows one PiP window at a time.
+let pipWindow = null, pipChannel = null;
+async function popOut(ch) {
+  if (pipWindow && !pipWindow.closed && pipChannel === ch) { pipWindow.focus(); return; }
+  if ('documentPictureInPicture' in window) {
+    try {
+      pipWindow = await openPipScope(ch);
+      pipChannel = ch;
+      pipWindow.addEventListener('pagehide', () => { pipWindow = null; pipChannel = null; });
+      log('info', `A${ch} popped out (always on top).`);
+      return;
+    } catch (e) {
+      log('warn', `Always-on-top window not available here (${e.message}); opening a regular window.`);
+    }
+  }
+  scopeBridge.open(ch).catch(e => log('error', `Pop out: ${e.message}`));
+}
 
 const scope = new Scope({
   canvas: $('scopeCanvas'), legend: $('scopeLegend'), rateLabel: $('scopeRate'),
@@ -450,7 +470,7 @@ function renderPin(pin, { mode, value }) {
       const pop = el('button', 'popout', 'Pop out');
       pop.type = 'button';
       pop.title = `Open A${ch} in its own oscilloscope window (it keeps showing here too)`;
-      pop.addEventListener('click', () => scopeBridge.open(ch).catch(e => log('error', `Pop out: ${e.message}`)));
+      pop.addEventListener('click', () => popOut(ch));
       row.ctl.append(pop);
     }
     return;

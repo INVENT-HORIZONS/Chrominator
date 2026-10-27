@@ -31,10 +31,15 @@ export class Scope {
     runButton.addEventListener('click', () => this.setPaused(!this.paused));
     clearButton.addEventListener('click', () => this.clearAll());
     saveButton.addEventListener('click', () => this.saveCsv());
-    new ResizeObserver(() => this.#touch()).observe(canvas);
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.#touch());
-    const frame = t => { if (this.dirty && t - this.lastDraw > 40) { this.lastDraw = t; this.dirty = false; this.#draw(); } requestAnimationFrame(frame); };
-    requestAnimationFrame(frame);
+    // The canvas may live in another window (a Picture-in-Picture pop-out), so window-level APIs
+    // are taken from the canvas's own window: its animation frames keep running even when the
+    // window that runs this code is hidden or minimized.
+    const view = this.view = canvas.ownerDocument.defaultView || window;
+    this.doc = canvas.ownerDocument;
+    new view.ResizeObserver(() => this.#touch()).observe(canvas);
+    view.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.#touch());
+    const frame = t => { if (this.dirty && t - this.lastDraw > 40) { this.lastDraw = t; this.dirty = false; this.#draw(); } view.requestAnimationFrame(frame); };
+    view.requestAnimationFrame(frame);
   }
 
   setBoard(hello) {
@@ -107,10 +112,10 @@ export class Scope {
 
   #draw() {
     const { canvas, ctx } = this;
-    const dpr = devicePixelRatio || 1;
+    const dpr = this.view.devicePixelRatio || 1;
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    const css = getComputedStyle(canvas);
+    const css = this.view.getComputedStyle(canvas);
     const col = name => css.getPropertyValue(name).trim();
     ctx.fillStyle = col('--scope-bg'); ctx.fillRect(0, 0, w, h);
 
@@ -211,7 +216,7 @@ export class Scope {
   // ---------- legend ----------
   #renderLegend() {
     this.legend.replaceChildren(...this.active.map(ch => {
-      const item = document.createElement('span');
+      const item = this.doc.createElement('span');
       item.className = 'trace';
       item.style.setProperty('--c', TRACE_COLORS[ch % TRACE_COLORS.length]);
       // Fixed slot per channel: A0-A3 on the first row, A4-A7 directly underneath.
@@ -221,14 +226,14 @@ export class Scope {
       item.querySelector('.tn').textContent = this.#label(ch);
       // V toggle: hide the live voltage for fast signals where the number just flickers.
       const on = this.meterOn.has(ch);
-      const v = Object.assign(document.createElement('button'), { type: 'button', className: 'meter', textContent: 'V' });
+      const v = Object.assign(this.doc.createElement('button'), { type: 'button', className: 'meter', textContent: 'V' });
       v.setAttribute('aria-pressed', String(on));
       v.title = on ? `Hide A${ch}'s live voltage` : `Show A${ch}'s live voltage`;
       item.querySelector('b').hidden = !on;
       v.addEventListener('click', () => this.toggleMeter(ch));
       item.append(v);
       if (this.onStop) {
-        const x = Object.assign(document.createElement('button'), { type: 'button', className: 'stop', textContent: '✕',
+        const x = Object.assign(this.doc.createElement('button'), { type: 'button', className: 'stop', textContent: '✕',
                                                                     title: `Remove A${ch} from the oscilloscope` });
         x.addEventListener('click', () => this.onStop(ch));
         item.append(x);
@@ -268,7 +273,7 @@ export class Scope {
       lines.push(`${((t - t0) * this.periodUs / 1e6).toFixed(6)},${vals.join(',')}`);
     }
     const url = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/csv' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `chrominator-capture-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv` });
+    const a = Object.assign(this.doc.createElement('a'), { href: url, download: `chrominator-capture-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv` });
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
