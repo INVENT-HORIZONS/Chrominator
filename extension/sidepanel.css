@@ -108,12 +108,13 @@ dt { color: var(--muted); } dd { margin: 0; }
 .scopectl button { padding: 2px 10px; min-width: 58px; }
 .scopectl button.paused { background: var(--warn); color: #fff; border-color: var(--warn); }
 #scopeCanvas { display: block; width: 100%; height: 220px; border-radius: 4px; border: 1px solid var(--border); }
-.scopefoot { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-top: 6px; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 12px Consolas, monospace; }
+.scopefoot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 4px 8px; margin-top: 6px; }
+/* Legend: fixed slots, four channels per row (A0-A3, then A4-A7 underneath); scope.js places each trace. */
+.legend { display: grid; grid-template-columns: repeat(4, max-content); gap: 4px 12px; font: 12px Consolas, monospace; }
 .trace { display: inline-flex; align-items: center; gap: 5px; }
 .trace i { width: 12px; height: 3px; border-radius: 2px; background: var(--c); }
 .trace b { font-weight: 600; }
-.scopebtns { display: flex; gap: 10px; flex: none; }
+.scopebtns { display: flex; gap: 10px; flex: none; margin-left: auto; }   /* wraps under the legend when the panel is narrow */
 .note.small { font-size: 11px; margin-top: 4px; }
 .busrole.capture { color: var(--c); display: inline-flex; align-items: center; gap: 5px; }
 .busrole.capture::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--c); }

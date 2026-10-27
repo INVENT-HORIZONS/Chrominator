@@ -126,6 +126,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list
   (`row.kind = 'capture'`, select disabled, colour badge "Capture A<n>"). It is stopped from the ✕ on
   its legend entry (`Scope` `onStop` → `changeMode(pin, MODE.ANALOG)`) or by All pins safe.
+- Capture legend is a fixed 4-column grid: each trace sits in its channel's slot (A0–A3 on row 1,
+  A4–A7 directly under them; `gridColumn`/`gridRow` set in `#renderLegend`). clear / save CSV wrap
+  under the legend when the panel is narrow.
 - Scope legend: each trace has a **V** toggle (`Scope.toggleMeter`) for its live voltage readout.
   Readouts are **hidden by default**; the set of channels the user turned on is saved in
   localStorage (`chrominator.scopeMeterOn`).

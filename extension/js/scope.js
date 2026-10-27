@@ -208,6 +208,9 @@ export class Scope {
       const item = document.createElement('span');
       item.className = 'trace';
       item.style.setProperty('--c', TRACE_COLORS[ch % TRACE_COLORS.length]);
+      // Fixed slot per channel: A0-A3 on the first row, A4-A7 directly underneath.
+      item.style.gridColumn = String(ch % 4 + 1);
+      item.style.gridRow = String(Math.floor(ch / 4) + 1);
       item.innerHTML = `<i></i>A${ch} <b data-ch="${ch}">—</b>`;
       // V toggle: hide the live voltage for fast signals where the number just flickers.
       const on = this.meterOn.has(ch);
