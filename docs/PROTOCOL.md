@@ -17,7 +17,8 @@ The host is always the one that asks; the board only speaks unprompted for event
 | Byte order | little-endian for all multi-byte numbers |
 
 Opening the port on an Uno R3 pulses DTR, which resets the board (auto-reset). The bootloader
-runs for about 1.5 s and may print junk; framing and CRC make the host ignore it.
+runs for about 1.5 s and may print junk; framing and CRC make the host ignore it. The Nano R4
+uses native USB: the baud rate is ignored and opening the port does not reset it.
 
 ## Frame format
 
@@ -61,7 +62,8 @@ reply is empty.
 
 ## Pin model
 
-Pins are numbered as the board numbers them (Uno: D0–D13 = 0–13, A0–A5 = 14–19).
+Pins are numbered as the board numbers them (Uno: D0–D13 = 0–13, A0–A5 = 14–19;
+Nano R4: D0–D13 = 0–13, A0–A7 = 14–21).
 
 **Modes**
 
@@ -103,7 +105,7 @@ on RESET_PINS or failsafe.
 | 0x12 | READ_ALL | — | levels u32 (bit n = pin n), adc_count u8, adc_count × u16 raw readings by channel |
 | 0x13 | RESET_PINS | — | — |
 
-**Board IDs:** 1 = Arduino Uno R3, 2 = Uno R4 Minima, 3 = Uno R4 WiFi.
+**Board IDs:** 1 = Arduino Uno R3, 2 = Uno R4 Minima, 3 = Uno R4 WiFi, 4 = Arduino Nano R4.
 
 Notes:
 - **SET_MODE** puts the pin's latch LOW and PWM off before changing mode, so an output always
@@ -113,7 +115,9 @@ Notes:
   that instant. ADC readings are taken for every ADC channel regardless of mode; the host only
   shows them for pins in ANALOG or CAPTURE mode. While any pin is in CAPTURE mode, the readings
   come from the capture scan (no `analogRead()`), so channels in neither ANALOG nor CAPTURE mode
-  report a stale value.
+  report a stale value. On a board without capture (capture_period_us = 0, e.g. the Nano R4) only
+  channels in ANALOG mode are converted and the others report 0, because the R4 core's
+  `analogRead()` would take the pin away from digital use.
 - **GET_CONFIG** also clears the PING `FAILSAFE` flag.
 - All commands are idempotent, so the host may safely retry any of them.
 

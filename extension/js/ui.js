@@ -11,13 +11,14 @@ let transport = null, link = null, port = null, busy = false;
 let rows = [];                     // per pin: { el, select, ctl, kind, refs, lastWrite }
 
 // ---------------- buses ----------------
-// Pins each bus takes over, by board ID. All supported boards share the Uno R3 header layout.
-const UNO_BUSES = {
+// Pins each bus takes over, by board ID. The Uno R3/R4 and Nano R4 all put I²C on A4/A5 and SPI on
+// D10-D13. (The Nano R4's Qwiic connector is a second, 3.3 V I²C bus on its own pins.)
+const HEADER_BUSES = {
   i2c: { name: 'I²C', pins: [[18, 'SDA'], [19, 'SCL']] },
   spi: { name: 'SPI', pins: [[13, 'SCK'], [11, 'MOSI'], [12, 'MISO'], [10, 'SS']] }
 };
-const BOARD_BUSES = { 1: UNO_BUSES, 2: UNO_BUSES, 3: UNO_BUSES };
-let buses = UNO_BUSES;
+const BOARD_BUSES = { 1: HEADER_BUSES, 2: HEADER_BUSES, 3: HEADER_BUSES, 4: HEADER_BUSES };
+let buses = HEADER_BUSES;
 const busOn = { i2c: false, spi: false };     // UI state only for now; the board isn't told yet
 
 function busOwner(pin) {
@@ -181,7 +182,7 @@ function buildPins({ hello, caps, config }) {
   });
   $('pinList').replaceChildren(...rows.map(r => r.el));
   $('pinsSection').hidden = false;
-  buses = BOARD_BUSES[hello.boardId] || UNO_BUSES;
+  buses = BOARD_BUSES[hello.boardId] || HEADER_BUSES;
   for (const [id, bus] of Object.entries(buses)) {
     $(`${id}Pins`).textContent = bus.pins.map(([p, role]) => `${role}\u00A0${pinLabel(p, caps[p])}`).join(' · ');
     syncBusControls(id);

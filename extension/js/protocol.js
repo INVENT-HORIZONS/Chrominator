@@ -26,7 +26,7 @@ export const CAP = Object.freeze({ DIN: 0x01, DOUT: 0x02, PWM: 0x04, ADC: 0x08, 
 
 export const FLAG = Object.freeze({ FAILSAFE: 0x01, NEEDS_HELLO: 0x02 });
 
-export const BOARD_NAME = Object.freeze({ 1: 'Arduino Uno R3', 2: 'Arduino Uno R4 Minima', 3: 'Arduino Uno R4 WiFi' });
+export const BOARD_NAME = Object.freeze({ 1: 'Arduino Uno R3', 2: 'Arduino Uno R4 Minima', 3: 'Arduino Uno R4 WiFi', 4: 'Arduino Nano R4' });
 
 // CRC-8, polynomial 0x07, init 0x00. crc8(ascii "123456789") === 0xF4.
 export function crc8(bytes, crc = 0) {
@@ -135,7 +135,7 @@ export function decodeCapture(d) {
   return { block, channel, samples };
 }
 
-// Uno-style pin labels: D0..D13 then A0..A5 for ADC pins.
+// Arduino pin labels: D0..D13, then A0..A5 (Uno) or A0..A7 (Nano R4) for ADC pins.
 export function pinLabel(pin, caps) {
   return caps?.adcChannel != null ? `A${caps.adcChannel}` : `D${pin}`;
 }

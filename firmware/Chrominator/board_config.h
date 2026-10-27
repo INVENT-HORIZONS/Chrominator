@@ -22,7 +22,8 @@
 #define CAPTURE_AVR   1
 #define CAPTURE_SIM   2
 
-#if defined(ARDUINO_AVR_UNO) || defined(CHROMINATOR_SIM)
+// CHROMINATOR_SIM builds the Uno R3 table for the PC simulator; add CHROMINATOR_SIM_NANOR4 for the Nano R4 table.
+#if defined(ARDUINO_AVR_UNO) || (defined(CHROMINATOR_SIM) && !defined(CHROMINATOR_SIM_NANOR4))
   // ---------------- Arduino Uno R3 (ATmega328P) ----------------
   #define BOARD_ID        1
   #define BOARD_NAME      "Arduino Uno R3"
@@ -58,6 +59,49 @@
   #define HW_WATCHDOG_BEGIN()   wdt_enable(WDTO_1S)
   #define HW_WATCHDOG_KICK()    wdt_reset()
   #define ADC_SETUP()           do {} while (0)
+
+#elif defined(ARDUINO_NANOR4) || defined(CHROMINATOR_SIM_NANOR4)
+  // ---------------- Arduino Nano R4 (Renesas RA4M1, 48 MHz, 5 V I/O) ----------------
+  // Core: "Arduino UNO R4 Boards" (arduino:renesas_uno), board "Arduino Nano R4".
+  // Pin numbers from the core's NANOR4 variant: D0-D13 = 0-13, A0-A7 = 14-21.
+  // Serial is native USB, so D0/D1 (Serial1) are ordinary pins and the board does not reset
+  // when the port opens. PWM on D3, D5, D6, D9, D10, D11. A0 is also the 12-bit DAC (not used yet).
+  #define BOARD_ID        4
+  #define BOARD_NAME      "Arduino Nano R4"
+  #define NUM_PINS        22
+  #define NUM_ADC         8
+  #define ADC_BITS        14
+  #define VREF_MV         5000
+  #define HAS_AVR_PORTS   0
+  #define CAPTURE_IMPL    CAPTURE_NONE   // TODO: capture on the RA4M1 (GPT/AGT timer + ADC scan)
+  #define CAPTURE_PERIOD_US 0
+
+  static const uint8_t PIN_CAPS[NUM_PINS] = {
+    CAP_GPIO, CAP_GPIO,                  // D0 RX1, D1 TX1 (free: USB is native)
+    CAP_GPIO, CAP_GPWM, CAP_GPIO,        // D2, D3~, D4
+    CAP_GPWM, CAP_GPWM, CAP_GPIO,        // D5~, D6~, D7
+    CAP_GPIO, CAP_GPWM, CAP_GPWM,        // D8, D9~, D10~
+    CAP_GPWM, CAP_GPIO, CAP_GPIO,        // D11~, D12, D13 (LED is a separate pin on the Nano R4)
+    CAP_GADC, CAP_GADC, CAP_GADC,        // A0 (DAC), A1, A2
+    CAP_GADC, CAP_GADC, CAP_GADC,        // A3, A4 (SDA), A5 (SCL)
+    CAP_GADC, CAP_GADC                   // A6, A7
+  };
+  static const uint8_t PIN_ADC[NUM_PINS] = {
+    NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC,
+    NO_ADC, NO_ADC, NO_ADC, NO_ADC, 0, 1, 2, 3, 4, 5, 6, 7
+  };
+  static const uint8_t ADC_PIN[NUM_ADC] = { A0, A1, A2, A3, A4, A5, A6, A7 };
+
+  #if defined(CHROMINATOR_SIM_NANOR4)
+    #define HW_WATCHDOG_BEGIN()   do {} while (0)
+    #define HW_WATCHDOG_KICK()    do {} while (0)
+    #define ADC_SETUP()           do {} while (0)
+  #else
+    #include <WDT.h>
+    #define HW_WATCHDOG_BEGIN()   WDT.begin(1000)
+    #define HW_WATCHDOG_KICK()    WDT.refresh()
+    #define ADC_SETUP()           analogReadResolution(ADC_BITS)
+  #endif
 
 #elif defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
   // ---------------- Arduino Uno R4 (RA4M1) — UNTESTED starting point ----------------

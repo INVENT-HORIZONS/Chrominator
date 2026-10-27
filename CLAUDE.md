@@ -9,8 +9,14 @@ browser's **side panel** (so it stays open while the user browses), connects to 
 USB serial, and exposes the board's GPIO, PWM and ADC. The serial link is only transport: the
 user picks the port and never sees baud rates, a terminal, or protocol details.
 
-Target board: **Arduino Uno R3** (ATmega328P). A port to the **Uno R4** (Minima/WiFi) is planned;
-`board_config.h` has an untested R4 block.
+Target board: **Arduino Nano R4** (Renesas RA4M1, board ID 4, core `arduino:renesas_uno`, macro
+`ARDUINO_NANOR4`), ported on the `nano-r4` branch. The **Uno R3** (ATmega328P) is still supported.
+`board_config.h` also has an untested Uno R4 Minima/WiFi block.
+
+Nano R4 facts that matter here: 22 pins (D0–D13 = 0–13, A0–A7 = 14–21; LED_BUILTIN is pin 22 and
+the RGB LED 23–25, not exposed yet), PWM on D3/5/6/9/10/11, 14-bit ADC, 5 V I/O, 12-bit DAC on A0
+(not exposed yet), native USB (`Serial`), so D0/D1 (`Serial1`) are free and opening the port does
+not reset the board. Capture is not implemented on the RA4M1 yet (`CAPTURE_NONE`).
 
 Follow-on to the htmlSerialPort project (`INVENT-HORIZONS/htmlSerialPort`), which established the
 Web Serial patterns and the side-panel port-picker workaround used here.
@@ -33,7 +39,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `test/sim/` | Fake Arduino core (`Arduino.h`, `avr/wdt.h`, `sim_main.cpp`) to run the firmware on a PC. |
-| `test/link.test.mjs`, `test/run.sh` | End-to-end tests: real firmware vs real `protocol.js` + `link.js`. |
+| `test/link.test.mjs`, `test/nanor4.test.mjs`, `test/run.sh` | End-to-end tests: real firmware (Uno and Nano R4 builds) vs real `protocol.js` + `link.js`. |
 
 ## Tech stack
 
@@ -76,7 +82,10 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **SET_MODE** latches the pin LOW (stopping PWM) before changing mode.
 - The Uno R3 auto-resets when the port opens; the host sends HELLO every ~400 ms for up to 5 s
   and ignores bootloader junk thanks to framing/CRC.
-- D0/D1 are RESERVED on the Uno (USB serial).
+- D0/D1 are RESERVED on the Uno (USB serial). On the Nano R4 they are ordinary pins.
+- **On the Renesas (R4) core `analogRead()` switches the pin to its analog function.** Without a
+  capture engine, `capAdcValue()` therefore converts only channels in ANALOG mode and returns 0
+  for the rest; never poll `analogRead()` on an A-pin that is in a digital mode.
 - **Capture must not use a dedicated timer on the Uno**: all three are taken (millis + PWM).
   It piggybacks on Timer0's compare-A interrupt (976.5625 Hz), so the period is 1024 µs, not
   1000 µs. The host must use `hello.capturePeriodUs`, never assume 1 ms.
@@ -124,11 +133,14 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 
 ## Building and testing
 
+- Firmware for the Nano R4: Arduino IDE, board "Arduino Nano R4" (Arduino UNO R4 Boards core).
+  Not yet compiled or run on real hardware.
 - Firmware for the Uno: Arduino IDE, board "Arduino Uno". Current size ≈ 5.6 KB flash, 1415 B RAM.
 - The simulator runs capture ticks from `loop()` using `micros()` and samples its fake signal at
   each tick's scheduled time (`simAdcClockUs`), so tests stay deterministic on a busy PC.
 - `test/run.sh` builds the firmware with `-DCHROMINATOR_SIM` against `test/sim` and runs
-  `test/link.test.mjs`. All tests must pass before committing protocol/firmware/link changes.
+  `test/link.test.mjs`, then builds it again with `-DCHROMINATOR_SIM_NANOR4` (Nano R4 pin map, no
+  capture) and runs `test/nanor4.test.mjs`. All tests must pass before committing protocol/firmware/link changes.
 - The UI can be exercised in Playwright's Chromium by loading the extension unpacked
   (`launchPersistentContext`, `channel: 'chromium'`, `--load-extension`), opening
   `chrome-extension://<id>/sidepanel.html`, and replacing `navigator.serial` with a fake port

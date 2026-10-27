@@ -164,6 +164,12 @@ static void capService() {
 #else   // board without a capture implementation
 static void capConfigure() {}
 static void capService() {}
-static uint16_t capAdcValue(uint8_t ch) { return (uint16_t)analogRead(ADC_PIN[ch]); }
+// Only convert channels whose pin is in ANALOG mode. On the Renesas (R4) core analogRead()
+// switches the pin to its analog function, which would silently break an A-pin being used as a
+// digital input or output. Other channels report 0 (the host ignores them).
+static uint16_t capAdcValue(uint8_t ch) {
+  if (pinMode_[ADC_PIN[ch]] != M_ANALOG) return 0;
+  return (uint16_t)analogRead(ADC_PIN[ch]);
+}
 static const uint16_t capOverruns = 0, capDropped = 0;
 #endif

@@ -8,8 +8,8 @@
 #include <time.h>
 #include <sys/time.h>
 
-static uint8_t mode_[20], latch[20], pwm[20];
-static volatile uint8_t reg[20];
+static uint8_t mode_[32], latch[32], pwm[32];
+static volatile uint8_t reg[32];
 static struct timeval t0;
 
 static void updateReg(uint8_t p) {

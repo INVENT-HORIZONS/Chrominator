@@ -16,6 +16,8 @@
 #define A3 17
 #define A4 18
 #define A5 19
+#define A6 20
+#define A7 21
 
 void pinMode(uint8_t pin, uint8_t mode);
 void digitalWrite(uint8_t pin, uint8_t val);
