@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chrominator",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "Debug an Arduino (Nano R4, Uno) from Chrome's side panel: pin modes, digital I/O, PWM and analog readings over USB.",
   "minimum_chrome_version": "116",
   "permissions": ["sidePanel"],

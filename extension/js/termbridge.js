@@ -54,13 +54,17 @@ export class TerminalBridge {
     } else if (m?.type === 'clear') {
       this.history = []; this.historyBytes = 0;
     } else if (m?.type === 'send') {
-      try {
-        await this.sendBytes(Uint8Array.from(m.bytes));
-        this.data('tx', m.bytes);
-        this.ch.postMessage({ type: 'sent', id: m.id });
-      } catch (e) {
-        this.ch.postMessage({ type: 'sent', id: m.id, error: e.message });
-      }
+      // One send at a time, in arrival order: in live mode every key is its own message, and a
+      // send that has to wait (board queue BUSY) must not let a later key overtake it.
+      this.queue = (this.queue || Promise.resolve()).then(async () => {
+        try {
+          await this.sendBytes(Uint8Array.from(m.bytes));
+          this.data('tx', m.bytes);
+          this.ch.postMessage({ type: 'sent', id: m.id });
+        } catch (e) {
+          this.ch.postMessage({ type: 'sent', id: m.id, error: e.message });
+        }
+      });
     }
   }
 }

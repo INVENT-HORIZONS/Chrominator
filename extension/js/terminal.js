@@ -13,7 +13,7 @@ let view = 'text';                 // 'text' | 'hex'
 let entries = [];                  // { dir, bytes, t } — kept so the view can be switched
 let entryBytes = 0;
 let status = null, lastStatus = 0;
-let line = null, lineDir = null, pendingCR = false;
+let line = null;
 let sendId = 0;
 const pendingSends = new Map();
 
@@ -23,48 +23,45 @@ try {
   if (p.view === 'hex') view = 'hex';
   if (p.eol != null) $('eol').value = p.eol;
   $('sendHex').checked = !!p.hex;
+  $('sendLive').checked = !!p.live;
 } catch {}
-const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify({ view, eol: $('eol').value, hex: $('sendHex').checked })); } catch {} };
+const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify({ view, eol: $('eol').value, hex: $('sendHex').checked, live: $('sendLive').checked })); } catch {} };
 
 // ---------------- rendering ----------------
 const atBottom = () => out.scrollHeight - out.scrollTop - out.clientHeight < 24;
 
 function newLine(dir) {
   line = document.createElement('div');
-  line.className = `ln ${dir}`;
+  line.className = dir ? `ln ${dir}` : 'ln';
   out.append(line);
-  lineDir = dir;
   while (out.childElementCount > MAX_LINES) out.firstElementChild.remove();
 }
 
-function ctlSpan(b) {
-  const s = document.createElement('span');
-  s.className = 'cc';
-  s.textContent = `‹${b.toString(16).toUpperCase().padStart(2, '0')}›`;
-  return s;
-}
-
-// Text view: printable ASCII as text, CR / LF / CR+LF end the line, other bytes as ‹XX›.
-// A change of direction (TX <-> RX) always starts a new line, so the two never share one.
-// A line is only created when something goes on it, so CR+LF doesn't leave an empty line behind;
-// a second line break in a row does give a blank line.
-let broke = false;                 // a line break was seen and the next line hasn't started yet
+// Text view: one stream, like Tera Term. Each run of TX or RX bytes is a red or green span, and the
+// two share a line until a CR, LF or CR+LF ends it, so live typing and its echo stay readable.
+// Printable ASCII shows as text, other bytes as ‹XX›. Line breaks are tracked per direction, so a
+// TX line break and its RX echo end the line once: a blank line appears only when the *same*
+// direction sends two breaks in a row.
+const crPending = { tx: false, rx: false };   // CR seen: a following LF of the same direction is part of it
+const lastWasBreak = { tx: false, rx: false };
 function lineBreak(dir) {
-  if (broke) { newLine(dir); line.textContent = ''; }       // blank line: the data had two breaks
-  line = null; broke = true;
+  if (!line && lastWasBreak[dir]) newLine();   // second break in a row from this direction: blank line
+  line = null;
+  lastWasBreak[dir] = true;
 }
 function appendText(dir, bytes) {
-  if (lineDir !== dir) { line = null; broke = false; pendingCR = false; lineDir = dir; }
   let text = '';
-  const target = () => { if (!line) { newLine(dir); broke = false; } return line; };
-  const flush = () => { if (text) { target().append(text); text = ''; } };
+  const target = () => { if (!line) newLine(); return line; };
+  const span = cls => { const e = document.createElement('span'); e.className = cls; target().append(e); return e; };
+  const run = () => { const last = target().lastElementChild; return last && last.className === dir ? last : span(dir); };
+  const flush = () => { if (text) { run().append(text); text = ''; lastWasBreak[dir] = false; } };
   for (const b of bytes) {
-    if (b === 0x0A) { if (pendingCR) { pendingCR = false; continue; } flush(); lineBreak(dir); continue; }
-    pendingCR = false;
-    if (b === 0x0D) { flush(); lineBreak(dir); pendingCR = true; continue; }
+    if (b === 0x0A) { if (crPending[dir]) { crPending[dir] = false; continue; } flush(); lineBreak(dir); continue; }
+    crPending[dir] = false;
+    if (b === 0x0D) { flush(); lineBreak(dir); crPending[dir] = true; continue; }
     if (b === 0x09) text += '    ';
     else if (b >= 0x20 && b < 0x7F) text += String.fromCharCode(b);
-    else { flush(); target().append(ctlSpan(b)); }
+    else { flush(); span(`cc ${dir}`).textContent = `‹${b.toString(16).toUpperCase().padStart(2, '0')}›`; lastWasBreak[dir] = false; }
   }
   flush();
 }
@@ -93,7 +90,8 @@ function append(entry, keep = true) {
 }
 
 function rerender() {
-  out.replaceChildren(); line = null; lineDir = null; pendingCR = false; broke = false;
+  out.replaceChildren(); line = null;
+  crPending.tx = crPending.rx = lastWasBreak.tx = lastWasBreak.rx = false;
   for (const e of entries) append(e, false);
   out.scrollTop = out.scrollHeight;
 }
@@ -117,7 +115,7 @@ function showStatus() {
   $('chipRx').textContent = `RX ${s?.rxPin || 'D0'} ${s?.rx ? 'on' : 'off'}`;
   $('cfg').textContent = s ? `${s.baud} ${s.format}` : '—';
   const canSend = !!(s && s.connected && s.tx);
-  $('line').disabled = !canSend; $('btnSend').disabled = !canSend;
+  $('line').disabled = !canSend; $('btnSend').disabled = !canSend || $('sendLive').checked;
   if (!$('hint').classList.contains('err')) {
     $('hint').textContent = !s || !s.connected ? '' : !s.tx
       ? `Turn on UART TX (${s.txPin}) in the side panel to send.`
@@ -139,6 +137,45 @@ function hint(msg, err = false) {
   if (err) setTimeout(() => { $('hint').classList.remove('err'); showStatus(); }, 4000);
 }
 
+const eolBytes = () => Array.from(new TextEncoder().encode($('eol').value.replace('\\r', '\r').replace('\\n', '\n')));
+
+function post(bytes, text = null) {
+  const id = ++sendId;
+  pendingSends.set(id, text);
+  ch.postMessage({ type: 'send', id, bytes });
+}
+
+// Live mode: each key is sent as it is pressed (the box stays empty), Tera Term style.
+const LIVE_KEYS = {
+  Backspace: [0x08], Tab: [0x09], Escape: [0x1B], Delete: [0x7F],
+  ArrowUp: [0x1B, 0x5B, 0x41], ArrowDown: [0x1B, 0x5B, 0x42], ArrowRight: [0x1B, 0x5B, 0x43], ArrowLeft: [0x1B, 0x5B, 0x44]
+};
+function liveKey(e) {
+  if (e.isComposing || e.metaKey || e.altKey) return;
+  let bytes = null;
+  if (e.key === 'Enter') { bytes = eolBytes(); if (!bytes.length) bytes = [0x0D]; }   // Enter always sends something
+  else if (LIVE_KEYS[e.key]) bytes = LIVE_KEYS[e.key];
+  else if (e.ctrlKey && /^[a-z]$/i.test(e.key)) {
+    if (e.key.toLowerCase() === 'v') return;                                     // Ctrl+V: paste (sent below)
+    bytes = [e.key.toUpperCase().charCodeAt(0) & 0x1F];                         // Ctrl+C = 0x03 …
+  } else if (!e.ctrlKey && e.key.length === 1) bytes = Array.from(new TextEncoder().encode(e.key));
+  if (!bytes) return;
+  e.preventDefault();
+  post(bytes);
+}
+
+function setLive() {
+  const live = $('sendLive').checked;
+  $('sendHex').disabled = live;
+  $('eol').disabled = !live && $('sendHex').checked;
+  $('line').value = '';
+  $('line').placeholder = live ? 'Live: every key is sent as you type (Enter sends the line ending)' : 'Type and press Enter to send on TX';
+  $('line').classList.toggle('live', live);
+  savePrefs();
+  showStatus();
+  $('line').focus();
+}
+
 function send() {
   const text = $('line').value;
   let bytes;
@@ -147,9 +184,7 @@ function send() {
     else bytes = Array.from(new TextEncoder().encode(text + $('eol').value.replace('\\r', '\r').replace('\\n', '\n')));
   } catch (e) { hint(e.message, true); return; }
   if (!bytes.length) return;
-  const id = ++sendId;
-  pendingSends.set(id, text);
-  ch.postMessage({ type: 'send', id, bytes });
+  post(bytes, text);
   $('line').value = '';
 }
 
@@ -160,7 +195,7 @@ ch.onmessage = ({ data: m }) => {
   else if (m?.type === 'history') { entries = []; entryBytes = 0; for (const e of m.entries) { entries.push(e); entryBytes += e.bytes.length; } rerender(); }
   else if (m?.type === 'sent' && pendingSends.has(m.id)) {
     const text = pendingSends.get(m.id); pendingSends.delete(m.id);
-    if (m.error) { hint(`Not sent: ${m.error}`, true); if (!$('line').value) $('line').value = text; }
+    if (m.error) { hint(`Not sent: ${m.error}`, true); if (text != null && !$('line').value) $('line').value = text; }
   }
 };
 
@@ -168,10 +203,27 @@ $('viewText').onclick = () => setView('text');
 $('viewHex').onclick = () => setView('hex');
 $('btnClear').onclick = () => { entries = []; entryBytes = 0; rerender(); ch.postMessage({ type: 'clear' }); };
 $('btnSend').onclick = send;
-$('line').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+$('line').addEventListener('keydown', e => {
+  if ($('sendLive').checked) return liveKey(e);
+  if (e.key === 'Enter') { e.preventDefault(); send(); }
+});
+$('line').addEventListener('paste', e => {
+  if (!$('sendLive').checked) return;
+  e.preventDefault();
+  const t = e.clipboardData.getData('text');
+  if (t) post(Array.from(new TextEncoder().encode(t)));
+});
+// Characters that arrive without a keydown we handled (e.g. from an IME) are sent too.
+$('line').addEventListener('input', () => {
+  if (!$('sendLive').checked || !$('line').value) return;
+  post(Array.from(new TextEncoder().encode($('line').value)));
+  $('line').value = '';
+});
+$('sendLive').onchange = setLive;
 $('eol').onchange = savePrefs;
 $('sendHex').onchange = () => { $('eol').disabled = $('sendHex').checked; savePrefs(); };
 $('eol').disabled = $('sendHex').checked;
+setLive();
 // Follow the light/dark choice made in the side panel.
 addEventListener('storage', e => {
   if (e.key !== 'chrominator.theme') return;

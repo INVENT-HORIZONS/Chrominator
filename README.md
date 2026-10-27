@@ -65,7 +65,9 @@ switches), and the other pin stays an ordinary pin for anything else, since ofte
 In UART mode the pin's label turns **green (RX)** or **red (TX)**. Set the baud (up to 115200) and
 format (8N1, 8N2, 8E1, 8E2, 8O1, 8O2) in the panel, and click **Terminal…** for a terminal window,
 Tera Term style: data sent on TX in red, data received on RX in green, a Text/Hex view, and a send
-box (Enter to send, with a choice of line ending, or raw hex bytes). (On the Uno R3, D0/D1 carry the
+box (Enter to send, with a choice of line ending, or raw hex bytes). Tick **Live** to send each key
+the moment it's typed: Enter sends the line ending, Backspace 0x08, Ctrl+letter the control code
+(Ctrl+C = 0x03), arrow keys their escape sequences, and a paste goes out at once. (On the Uno R3, D0/D1 carry the
 USB link, so there is no free UART.)
 
 **I²C Port and SPI Port.** Below the pins, each bus has its own panel: switch on **I²C** (SDA A4,

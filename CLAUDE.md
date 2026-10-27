@@ -131,7 +131,11 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   owns the link; `js/termbridge.js` (`TerminalBridge`) relays over BroadcastChannel
   `chrominator-uart` and keeps ~256 KB of history for a newly opened window. `js/terminal.js`:
   TX text red, RX green (`--uart-tx` / `--uart-rx`, defined in all three theme blocks of
-  sidepanel.css), Text/Hex view, line ending, hex send. UART pin labels/badges use the same colours
+  sidepanel.css), Text/Hex view, line ending, hex send, **Live** mode (each key sent on keydown:
+  Enter = line ending, Backspace 0x08, Ctrl+letter = control code, arrows = ESC [ A–D, paste sent
+  whole). Text view is one stream: TX/RX runs are coloured spans sharing a line until CR/LF; line
+  breaks are tracked per direction so a TX break and its RX echo end the line once. `TerminalBridge`
+  sends strictly one at a time in arrival order (live keys must not overtake a BUSY retry). UART pin labels/badges use the same colours
   (`.label.uart-tx/.uart-rx`) and return to the normal text colour as GPIO.
 - **I²C Port and SPI Port panels** (`#i2cSection`, `#spiSection`, both `section.buses`) are UI-only so far: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
   bus to its pins (I²C A4/A5; SPI D13/D11/D12/D10). Turning a bus on sets any of its pins that

@@ -26,6 +26,7 @@
 <main id="out" class="termout" tabindex="0" aria-live="off"></main>
 <footer class="termsend">
   <input id="line" type="text" spellcheck="false" autocomplete="off" placeholder="Type and press Enter to send on TX">
+  <label class="hexsend" title="Send each key the moment it is typed, like Tera Term (Enter sends the line ending, Ctrl+letter sends control codes)"><input type="checkbox" id="sendLive"> Live</label>
   <label class="hexsend" title="Send hex bytes, e.g. 48 65 6C 6C 6F"><input type="checkbox" id="sendHex"> Hex</label>
   <select id="eol" title="Line ending added when sending text">
     <option value="">No line ending</option><option value="\r">CR</option><option value="\n">LF</option><option value="\r\n" selected>CR+LF</option>
