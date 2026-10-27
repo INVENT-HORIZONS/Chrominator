@@ -61,7 +61,9 @@
   #define HW_WATCHDOG_KICK()    wdt_reset()
   #define ADC_SETUP()           do {} while (0)
 
-#elif defined(ARDUINO_NANOR4) || defined(CHROMINATOR_SIM_NANOR4)
+#elif defined(ARDUINO_NANO_R4) || defined(CHROMINATOR_SIM_NANOR4)
+  // The core defines ARDUINO_NANO_R4 *and* ARDUINO_UNOR4_MINIMA for the Nano R4, so this block
+  // must stay ahead of the Minima block below.
   // ---------------- Arduino Nano R4 (Renesas RA4M1, 48 MHz, 5 V I/O) ----------------
   // Core: "Arduino UNO R4 Boards" (arduino:renesas_uno), board "Arduino Nano R4".
   // Pin numbers from the core's NANOR4 variant: D0-D13 = 0-13, A0-A7 = 14-21.

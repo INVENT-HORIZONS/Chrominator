@@ -10,7 +10,8 @@ USB serial, and exposes the board's GPIO, PWM and ADC. The serial link is only t
 user picks the port and never sees baud rates, a terminal, or protocol details.
 
 Target board: **Arduino Nano R4** (Renesas RA4M1, board ID 4, core `arduino:renesas_uno`, macro
-`ARDUINO_NANOR4`), ported on the `nano-r4` branch. The **Uno R3** (ATmega328P) is still supported.
+`ARDUINO_NANO_R4`; the core *also* defines `ARDUINO_UNOR4_MINIMA` for it, so the Nano R4 block in
+`board_config.h` must come before the Minima block), ported on the `nano-r4` branch. The **Uno R3** (ATmega328P) is still supported.
 `board_config.h` also has an untested Uno R4 Minima/WiFi block.
 
 Nano R4 facts that matter here: 22 pins (D0–D13 = 0–13, A0–A7 = 14–21; LED_BUILTIN is pin 22 and

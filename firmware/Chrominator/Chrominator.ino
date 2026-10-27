@@ -1,7 +1,7 @@
 // Chrominator firmware — exposes the board's GPIO, PWM and ADC to the Chrominator
 // Chrome extension over USB serial. Protocol: docs/PROTOCOL.md (version 2).
 //
-// Board: Arduino Uno R3 (tested); Uno R4 support is in board_config.h (untested).
+// Boards: Arduino Nano R4 and Uno R3 (tested); Uno R4 Minima/WiFi in board_config.h (untested).
 // Serial: 115200 8N1. Do not use Serial for anything else (no Serial.print debugging):
 // every byte on the port must be a protocol frame.
 
@@ -10,7 +10,7 @@
 // ---------------- Protocol constants ----------------
 #define PROTO_VERSION     2
 #define FW_MAJOR          1
-#define FW_MINOR          4
+#define FW_MINOR          5
 
 #define SOF               0xA5
 #define MAX_DATA          48
