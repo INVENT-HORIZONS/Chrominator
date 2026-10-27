@@ -44,24 +44,26 @@ link the whole time, and the board drops every pin to a safe state if the browse
 | Output | On/off switch; shows `reads LOW!` if the pin doesn't follow (short or overload) |
 | PWM (pins marked ~) | Slider, 0–255 |
 | Analog (A0–A7 on the Nano R4, A0–A5 on the Uno) | Voltage (5 V reference), raw reading (14-bit on the Nano R4, 10-bit on the Uno) and a bar |
-| Capture (A0–A5, Uno only for now) | The pin is sampled ~1000 times a second and drawn on the **Scope**; its row is greyed out, and the ✕ next to its trace in the Scope stops it (back to Analog) |
+| Capture (A0–A7 Nano R4, A0–A5 Uno) | The pin is sampled continuously (100 times a second on the Nano R4, ~1000 on the Uno) and drawn on the **Capture** panel; its row is greyed out, and the ✕ next to its trace stops it (back to Analog) |
 
-**Scope.** Put one or more analog pins in **Capture** and the Scope appears below the pins, with
-every capturing channel overlaid in its own colour (shown next to the pin). The board samples
-all capturing pins at the same instant, 976.6 times a second (every 1.024 ms), and sends them in
-32-sample blocks; the time axis comes from the board's clock, not the PC's. Pick 1 s to 2 min
+**Capture.** The Capture panel sits at the top, above the pins. Put one or more analog pins in
+**Capture** and their waveforms are drawn there in roll mode (newest sample at the right edge,
+the trace moving left), overlaid, each in its pin's colour: A0–A7 carry the same colour in the
+pin list. The board samples all capturing pins at the same instant: 100 times a second with full
+14-bit readings on the Nano R4 (sent in 8-sample blocks), 976.6 times a second at 10 bits on the
+Uno (32-sample blocks). The time axis comes from the board's clock, not the PC's. Pick 1 s to 2 min
 across the screen, a fixed 0–5 V or *Auto* vertical scale, **Pause** to freeze the picture
 (capture carries on underneath), the **V** next to each trace to show its live voltage (off by default, since a fast signal
 just makes the number flicker; remembered per channel), and **save CSV** to export everything held (about the last
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
-**Buses.** Below the pins, switch on **I²C** (SDA A4, SCL A5) or **SPI** (SCK D13, MOSI D11,
-MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
+**I²C Port and SPI Port.** Below the pins, each bus has its own panel: switch on **I²C** (SDA A4,
+SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
 bit-order settings are there, but sending and receiving data isn't implemented yet.
 
-Every panel folds up: click its heading (Buses, Pins, Scope, Diagnostics, Event log). Chrominator
+Every panel folds up: click its heading (Capture, Pins, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and

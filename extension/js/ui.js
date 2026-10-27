@@ -80,7 +80,7 @@ function setState(state) {
   $('linkPill').textContent = STATE_TEXT[state];
   $('eye').classList.toggle('on', state === LINK.UP);
   $('pinsSection').classList.toggle('offline', state !== LINK.UP);
-  $('busSection').classList.toggle('offline', state !== LINK.UP);
+  for (const sec of document.querySelectorAll('section.buses')) sec.classList.toggle('offline', state !== LINK.UP);
   $('btnConnect').textContent = state === LINK.STOPPED ? 'Connect' : 'Disconnect';
   $('btnChoose').hidden = state !== LINK.STOPPED;
   if (state === LINK.STOPPED) { $('rtt').textContent = ''; }
@@ -136,7 +136,7 @@ async function disconnect(say = true) {
   setState(LINK.STOPPED);
   $('boardInfo').textContent = 'No board connected';
   $('pinsSection').hidden = true;
-  $('busSection').hidden = true;
+  for (const sec of document.querySelectorAll('section.buses')) sec.hidden = true;
   $('scopeSection').hidden = true;
   renderStats();
   if (say) log('info', 'Disconnected.');
@@ -165,6 +165,8 @@ function buildPins({ hello, caps, config }) {
     const label = el.querySelector('.label');
     label.textContent = pinLabel(pin, c);
     if (c.caps & CAP.PWM) label.insertAdjacentHTML('beforeend', '<sup>~</sup>');
+    // A-pins carry their channel's colour, the same one their trace uses on the Capture panel.
+    if (c.adcChannel != null) { label.classList.add('adc'); label.style.setProperty('--c', TRACE_COLORS[c.adcChannel % TRACE_COLORS.length]); }
     const select = el.querySelector('select');
     const ctl = el.querySelector('.ctl');
     const row = { el, select, ctl, caps: c, kind: null, refs: {}, lastWrite: 0 };
@@ -187,7 +189,7 @@ function buildPins({ hello, caps, config }) {
     $(`${id}Pins`).textContent = bus.pins.map(([p, role]) => `${role}\u00A0${pinLabel(p, caps[p])}`).join(' · ');
     syncBusControls(id);
   }
-  $('busSection').hidden = false;
+  for (const sec of document.querySelectorAll('section.buses')) sec.hidden = false;
   renderAllPins(config);
 }
 
@@ -217,11 +219,12 @@ async function setBus(id, on) {
 
 function renderAllPins(config) {
   config.forEach((cfg, pin) => { if (rows[pin] && !(rows[pin].caps.caps & CAP.RESERVED)) renderPin(pin, cfg); });
-  // The scope shows every ADC channel in Capture mode, overlaid.
+  // The Capture panel shows every ADC channel in Capture mode, overlaid. It stays visible on any
+  // board that can capture, with a hint until a pin is set to Capture.
   const capturing = config.flatMap((cfg, pin) =>
     cfg.mode === MODE.CAPTURE && rows[pin]?.caps.adcChannel != null ? [rows[pin].caps.adcChannel] : []);
   scope.setActive(capturing);
-  $('scopeSection').hidden = capturing.length === 0;
+  $('scopeSection').hidden = !link?.board?.hello.capturePeriodUs;
 }
 
 function renderPin(pin, { mode, value }) {
@@ -230,16 +233,16 @@ function renderPin(pin, { mode, value }) {
   const owner = busOwner(pin);
   row.el.classList.toggle('onbus', !!owner);
   row.select.disabled = !!owner;
-  // A capturing pin belongs to the Scope: greyed out here, stopped from the Scope's legend.
+  // A capturing pin belongs to the Capture panel: greyed out here, stopped from its legend.
   if (!owner && mode === MODE.CAPTURE) {
     row.el.classList.add('onbus');
     row.select.disabled = true;
     if (row.kind === 'capture') return;
     row.kind = 'capture';
     row.refs = {};
-    const badge = el('span', 'busrole capture', `Scope A${row.caps.adcChannel}`);
+    const badge = el('span', 'busrole capture', `Capture A${row.caps.adcChannel}`);
     badge.style.setProperty('--c', TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length]);
-    badge.title = 'Captured on the Scope. Stop it with the ✕ next to this trace in the Scope.';
+    badge.title = 'Drawn on the Capture panel. Stop it with the ✕ next to this trace there.';
     row.ctl.replaceChildren(badge);
     return;
   }
@@ -362,7 +365,7 @@ $('btnSafe').onclick = async () => {
   catch (e) { log('error', 'Reset failed: ' + e.message); }
 };
 // ---------------- collapsible panels ----------------
-// Buses, Pins and Scope fold up from their heading; Diagnostics and Event log are <details>.
+// Capture, Pins, I²C Port and SPI Port fold up from their heading; Diagnostics and Event log are <details>.
 // Header controls (All pins safe, scope settings) stay usable while a panel is folded.
 // Folded/open state is remembered per viewer in localStorage.
 const FOLD_KEY = 'chrominator.folded';

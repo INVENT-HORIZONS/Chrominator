@@ -61,6 +61,7 @@ h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
 .pin:first-child { border-top: none; }
 .pin .label { font: 600 13px Consolas, monospace; }
 .pin .label sup { color: var(--accent); font-size: 10px; }
+.pin .label.adc { color: var(--c); }
 .pin.reserved { color: var(--muted); }
 .pin select { width: 100%; font: inherit; padding: 3px 4px; color: var(--text); background: var(--panel);
               border: 1px solid var(--border); border-radius: 4px; }

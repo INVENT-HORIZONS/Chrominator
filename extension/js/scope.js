@@ -1,17 +1,19 @@
 // Chrominator scope: stores EVT_CAPTURE blocks per ADC channel on a common sample clock and
 // draws all capturing channels overlaid on one canvas.
 //
-// Time comes from the board, not the PC: sample k of block b is tick b*32 + k, and a tick is
+// Roll mode: the newest sample is at the right edge and the trace moves left as samples arrive.
+// Time comes from the board, not the PC: sample k of block b is tick b*N + k, where N is the
+// samples per block (32 on the Uno, 8 on the Nano R4, taken from each frame), and a tick is
 // hello.capturePeriodUs. Block numbers are 16-bit on the wire and unwrapped here.
 
-const CAPACITY = 1 << 17;                 // samples kept per channel (~134 s at 1.024 ms)
-const BLOCK = 32;
+const CAPACITY = 1 << 17;                 // samples kept per channel (~134 s at 1.024 ms, ~22 min at 10 ms)
 const METER_KEY = 'chrominator.scopeMeterOn';    // channels whose live voltage readout is shown (default: none)
 
 function loadMeterOn() {
   try { return new Set(JSON.parse(localStorage.getItem(METER_KEY)) || []); } catch { return new Set(); }
 }
-export const TRACE_COLORS = ['#2f81f7', '#e5534b', '#3fb950', '#d29922', '#a371f7', '#39c5cf'];
+// One colour per ADC channel A0..A7; the pin list uses the same colour for each A-pin label.
+export const TRACE_COLORS = ['#2f81f7', '#e5534b', '#3fb950', '#d29922', '#a371f7', '#39c5cf', '#db61a2', '#f0883e'];
 
 export class Scope {
   constructor({ canvas, legend, rateLabel, windowSelect, rangeSelect, runButton, clearButton, saveButton, onStop }) {
@@ -77,7 +79,7 @@ export class Scope {
       c = { raw: new Uint16Array(CAPACITY), tick: new Int32Array(CAPACITY).fill(-1), latest: null };
       this.channels.set(channel, c);
     }
-    const t0 = this.lastBlock * BLOCK;
+    const t0 = this.lastBlock * samples.length;
     for (let k = 0; k < samples.length; k++) {
       const t = t0 + k, i = t & (CAPACITY - 1);
       c.raw[i] = samples[k]; c.tick[i] = t;
@@ -147,9 +149,10 @@ export class Scope {
         ctx.fillText(i === 10 ? '0 s' : `${+s.toFixed(2)}`, Math.min(x, w - 12 * dpr), padT + ph + 3 * dpr);
       }
     }
-    if (end < 0) {
+    if (!this.active.length || end < 0) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('Waiting for samples…', padL + pw / 2, padT + ph / 2);
+      ctx.fillText(this.active.length ? 'Waiting for samples…' : 'Set an analog pin (A0–A7) to Capture to draw it here',
+                   padL + pw / 2, padT + ph / 2);
       return;
     }
 

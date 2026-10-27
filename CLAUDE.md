@@ -16,7 +16,9 @@ Target board: **Arduino Nano R4** (Renesas RA4M1, board ID 4, core `arduino:rene
 Nano R4 facts that matter here: 22 pins (D0–D13 = 0–13, A0–A7 = 14–21; LED_BUILTIN is pin 22 and
 the RGB LED 23–25, not exposed yet), PWM on D3/5/6/9/10/11, 14-bit ADC, 5 V I/O, 12-bit DAC on A0
 (not exposed yet), native USB (`Serial`), so D0/D1 (`Serial1`) are free and opening the port does
-not reset the board. Capture is not implemented on the RA4M1 yet (`CAPTURE_NONE`).
+not reset the board. Capture on the Nano R4 is `CAPTURE_POLL`: `loop()` runs each due tick on
+`micros()` with `analogRead()`, 100 samples/s (`CAPTURE_PERIOD_US` 10000), full 14-bit samples,
+8 per block (`CAP_BITS`/`CAP_BLOCK_SAMPLES` overridden in `board_config.h`), 16-block queue.
 
 Follow-on to the htmlSerialPort project (`INVENT-HORIZONS/htmlSerialPort`), which established the
 Web Serial patterns and the side-panel port-picker workaround used here.
@@ -27,7 +29,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 |---|---|
 | `docs/PROTOCOL.md` | **The protocol spec. The source of truth** for frames, commands, statuses, timings. |
 | `firmware/Chrominator/Chrominator.ino` | Firmware: frame parser, command handlers, link watchdog/failsafe. |
-| `firmware/Chrominator/capture.h` | Capture engine: Timer0-compare tick, interrupt-driven ADC scan, 10-bit packing, block queue; AVR and simulator back ends. |
+| `firmware/Chrominator/capture.h` | Capture engine: tick, ADC scan, bit packing (10- or 14-bit), block queue. Back ends: AVR (Timer0 compare + ADC interrupt), polled (`loop()` + `micros()` + `analogRead()`, Nano R4) and simulator. |
 | `firmware/Chrominator/board_config.h` | Per-board pin tables and capability flags; the only file a board port should need. |
 | `extension/manifest.json` | MV3, `sidePanel` permission, Chrome 116+. Bump `version` on changes. |
 | `extension/background.js` | Only sets `openPanelOnActionClick`. |
@@ -35,7 +37,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/protocol.js` | Constants, CRC-8, `encodeFrame`, `FrameParser`, reply decoders. No browser APIs. |
 | `extension/js/link.js` | `ChrominatorLink`: request/reply by SEQ, timeouts, retries, heartbeat, LOST detection, resync. No DOM. |
 | `extension/js/serial.js` | Web Serial transport (`SerialTransport`) and port selection (`choosePort`, `lastUsedPort`). |
-| `extension/js/scope.js` | `Scope`: per-channel sample store on the board's tick clock (block unwrap), canvas drawing, legend, CSV export. |
+| `extension/js/scope.js` | `Scope` (the Capture panel): per-channel sample store on the board's tick clock (block unwrap; samples per block taken from each frame), roll-mode canvas drawing, legend, CSV export, `TRACE_COLORS` (one per A0–A7). |
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `test/sim/` | Fake Arduino core (`Arduino.h`, `avr/wdt.h`, `sim_main.cpp`) to run the firmware on a PC. |
@@ -103,7 +105,7 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   UI reacts to events; it never parses frames itself.
 - Pin rows are built once per board (`buildPins`) from the board's capabilities, then updated in
   place (`renderPin` rebuilds a row's control only when its mode changes; `updateInputs` updates values).
-- **Buses section (I²C / SPI) is UI-only so far**: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
+- **I²C Port and SPI Port panels** (`#i2cSection`, `#spiSection`, both `section.buses`) are UI-only so far: `UNO_BUSES` / `BOARD_BUSES` in `ui.js` map each
   bus to its pins (I²C A4/A5; SPI D13/D11/D12/D10). Turning a bus on sets any of its pins that
   aren't INPUT back to INPUT (via SET_MODE), then `renderPin` shows them disabled with their role
   (`row.kind = 'bus:<id>'`). `busOn` lives only in the panel; the board isn't told and there is no
@@ -112,13 +114,18 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   clock and SPI clock/mode/order selects; all are placeholders that nothing reads yet. The user is
   still designing how master and slave traffic will work; don't implement it until asked.
   Sniffing was considered and dropped (I²C slave must ACK; Uno SPI slave sees one direction only).
-- **Capturing pins belong to the Scope**: a pin in CAPTURE mode is greyed out in the Pins list
-  (`row.kind = 'capture'`, select disabled, colour badge "Scope A<n>"). It is stopped from the ✕ on
+- **Capture panel** (`#scopeSection`, heading "Capture") sits at the top, above Pins. It is shown
+  whenever the board can capture (`hello.capturePeriodUs` non-zero), with a hint until a pin is
+  set to Capture. Drawing is roll mode: newest sample at the right edge.
+- **A-pin colours**: each A-pin label in the pin list is coloured `TRACE_COLORS[adcChannel]`
+  (`.label.adc`, `--c`), the same colour as its trace. Keep the two in step.
+- **Capturing pins belong to the Capture panel**: a pin in CAPTURE mode is greyed out in the Pins list
+  (`row.kind = 'capture'`, select disabled, colour badge "Capture A<n>"). It is stopped from the ✕ on
   its legend entry (`Scope` `onStop` → `changeMode(pin, MODE.ANALOG)`) or by All pins safe.
 - Scope legend: each trace has a **V** toggle (`Scope.toggleMeter`) for its live voltage readout.
   Readouts are **hidden by default**; the set of channels the user turned on is saved in
   localStorage (`chrominator.scopeMeterOn`).
-- **Collapsible panels**: `initCollapsibles()` in `ui.js` turns each Buses/Pins/Scope `<h2>` into a
+- **Collapsible panels**: `initCollapsibles()` in `ui.js` turns each Capture/Pins/I²C Port/SPI Port `<h2>` into a
   `button.fold`; `section.folded` hides everything but `.sectionhead`, so header controls stay
   usable. Diagnostics and Event log are `<details>`. Fold state is saved per viewer in
   localStorage (`chrominator.folded`, keyed by section id). New panels: give them an id and a

@@ -136,31 +136,34 @@ trips (the host may not receive it, which is why the PING flag also records it).
 
 Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on the board.
 
-- **Sample clock:** one tick every `capture_period_us` (from HELLO). Uno R3: **1024 µs
-  (976.5625 samples/s)**, from a Timer0 compare-match interrupt. Timer0 already drives `millis()`
+- **Sample clock:** one tick every `capture_period_us` (from HELLO). Nano R4: **10 000 µs
+  (100 samples/s)**, ticks run from the main loop on `micros()`, each sample taken within one loop
+  pass of its scheduled time. Uno R3: **1024 µs (976.5625 samples/s)**, from a Timer0 compare-match interrupt. Timer0 already drives `millis()`
   and the PWM on D5/D6, so no timer or PWM pin is given up. Changing the PWM duty on D6 moves the
   compare point and can shift one sample by up to one period.
 - **Scan:** at each tick the ADC converts every channel in CAPTURE *or* ANALOG mode, one after
   another, driven by the ADC-complete interrupt (about 104 µs per channel). All CAPTURE channels
   are therefore sampled within the same tick and line up sample-for-sample.
-- **Blocks:** samples are packed into blocks of **32 per channel**. A finished block is sent as
+- **Blocks:** samples are packed into blocks of *N* per channel, the `count` field of every
+  EVT_CAPTURE frame (Uno **32**, Nano R4 **8**; fixed per board). A finished block is sent as
   one EVT_CAPTURE frame per CAPTURE channel, all carrying the same block number. A block covers
-  32 ticks (32.768 ms on the Uno).
+  *N* ticks (32.768 ms on the Uno, 80 ms on the Nano R4).
 - **Packing:** sample *k* occupies bits `k*bits … k*bits+bits-1` of the payload, least significant
-  bit first (little-endian bit stream). With 10-bit samples, 32 samples = 40 bytes; the frame's
-  DATA is 45 bytes.
-- **Timing:** sample *k* of block *b* was taken at tick `b*32 + k`. Block numbers are 16-bit and
+  bit first (little-endian bit stream). `bits` is in every frame: Uno 10 bits × 32 samples = 40
+  bytes (DATA 45 bytes); Nano R4 14 bits × 8 samples = 14 bytes (DATA 19 bytes).
+- **Timing:** sample *k* of block *b* was taken at tick `b*N + k`. Block numbers are 16-bit and
   wrap; the host unwraps them. A missing number is a gap. A large backwards jump means the board
   restarted.
-- **Queue:** the board holds up to 4 blocks (3 finished + 1 filling, 960 bytes of SRAM). If the
+- **Queue:** the Uno holds up to 4 blocks (3 finished + 1 filling, 960 bytes of SRAM); the Nano R4 16. If the
   host cannot keep up, the oldest unsent data is overwritten, `capture_dropped` (PING) counts it
   and the block number still advances so the host sees the gap. `capture_overruns` counts ticks
   skipped because the previous scan had not finished.
 - **Reconfiguration:** any change of a pin into or out of ANALOG/CAPTURE restarts the sampler;
   the partly filled block and any queued blocks are discarded (a short gap on the other channels).
   Failsafe and RESET_PINS stop capture.
-- **Bandwidth:** each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s. All six channels use about
-  9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL.
+- **Bandwidth:** on the Uno each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s; all six channels
+  use about 9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL. On the Nano R4
+  each channel costs 24 bytes per 80 ms = 300 B/s, 2.4 kB/s for all eight.
 
 ## Heartbeat and disconnection detection
 

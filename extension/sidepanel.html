@@ -24,56 +24,9 @@
 </section>
 <div class="portline"><span id="portName"></span><button id="btnChoose" class="link">Choose a different port…</button></div>
 
-<section class="pins" id="pinsSection" hidden>
-  <div class="sectionhead">
-    <h2>Pins</h2>
-    <button id="btnSafe" title="Set every pin back to a plain input">All pins safe</button>
-  </div>
-  <div id="pinList" class="pinlist"></div>
-</section>
-
-<section class="buses" id="busSection" hidden>
-  <div class="sectionhead"><h2>Buses</h2></div>
-  <div class="bus" id="busI2c">
-    <label class="switch"><input type="checkbox" id="i2cOn" aria-label="Enable I2C"><span></span></label>
-    <span class="busname">I²C</span>
-    <span class="buspins" id="i2cPins"></span>
-    <div class="busopts">
-      <label>Role <select id="i2cRole" disabled>
-        <option value="master" selected>Master</option><option value="slave">Slave</option>
-      </select></label>
-      <label>Clock <select id="i2cClock" disabled>
-        <option value="100000" selected>100 kHz</option><option value="400000">400 kHz</option>
-      </select></label>
-    </div>
-  </div>
-  <div class="bus" id="busSpi">
-    <label class="switch"><input type="checkbox" id="spiOn" aria-label="Enable SPI"><span></span></label>
-    <span class="busname">SPI</span>
-    <span class="buspins" id="spiPins"></span>
-    <div class="busopts">
-      <label>Role <select id="spiRole" disabled>
-        <option value="master" selected>Master</option><option value="slave">Slave</option>
-      </select></label>
-      <label>Clock <select id="spiClock" disabled>
-        <option value="125000">125 kHz</option><option value="250000">250 kHz</option>
-        <option value="500000">500 kHz</option><option value="1000000" selected>1 MHz</option>
-        <option value="2000000">2 MHz</option><option value="4000000">4 MHz</option>
-      </select></label>
-      <label>Mode <select id="spiMode" disabled>
-        <option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
-      </select></label>
-      <label>Order <select id="spiOrder" disabled>
-        <option value="msb" selected>MSB first</option><option value="lsb">LSB first</option>
-      </select></label>
-    </div>
-  </div>
-  <div class="note small">Turning a bus on hands its pins to the bus; they're greyed out in the pin list above. Sending and receiving data isn't wired up yet.</div>
-</section>
-
 <section class="scope" id="scopeSection" hidden>
   <div class="sectionhead">
-    <h2>Scope</h2>
+    <h2>Capture</h2>
     <div class="scopectl">
       <select id="scopeWindow" title="Time across the screen">
         <option value="1">1 s</option><option value="2">2 s</option><option value="5">5 s</option>
@@ -95,6 +48,58 @@
     </div>
   </div>
   <div class="note small" id="scopeRate"></div>
+</section>
+
+<section class="pins" id="pinsSection" hidden>
+  <div class="sectionhead">
+    <h2>Pins</h2>
+    <button id="btnSafe" title="Set every pin back to a plain input">All pins safe</button>
+  </div>
+  <div id="pinList" class="pinlist"></div>
+</section>
+
+<section class="buses" id="i2cSection" hidden>
+  <div class="sectionhead"><h2>I²C Port</h2></div>
+  <div class="bus" id="busI2c">
+    <label class="switch"><input type="checkbox" id="i2cOn" aria-label="Enable I2C"><span></span></label>
+    <span class="busname">I²C</span>
+    <span class="buspins" id="i2cPins"></span>
+    <div class="busopts">
+      <label>Role <select id="i2cRole" disabled>
+        <option value="master" selected>Master</option><option value="slave">Slave</option>
+      </select></label>
+      <label>Clock <select id="i2cClock" disabled>
+        <option value="100000" selected>100 kHz</option><option value="400000">400 kHz</option>
+      </select></label>
+    </div>
+  </div>
+  <div class="note small">Turning I²C on hands its pins to it; they're greyed out in the pin list above. Sending and receiving data isn't wired up yet.</div>
+</section>
+
+<section class="buses" id="spiSection" hidden>
+  <div class="sectionhead"><h2>SPI Port</h2></div>
+  <div class="bus" id="busSpi">
+    <label class="switch"><input type="checkbox" id="spiOn" aria-label="Enable SPI"><span></span></label>
+    <span class="busname">SPI</span>
+    <span class="buspins" id="spiPins"></span>
+    <div class="busopts">
+      <label>Role <select id="spiRole" disabled>
+        <option value="master" selected>Master</option><option value="slave">Slave</option>
+      </select></label>
+      <label>Clock <select id="spiClock" disabled>
+        <option value="125000">125 kHz</option><option value="250000">250 kHz</option>
+        <option value="500000">500 kHz</option><option value="1000000" selected>1 MHz</option>
+        <option value="2000000">2 MHz</option><option value="4000000">4 MHz</option>
+      </select></label>
+      <label>Mode <select id="spiMode" disabled>
+        <option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      </select></label>
+      <label>Order <select id="spiOrder" disabled>
+        <option value="msb" selected>MSB first</option><option value="lsb">LSB first</option>
+      </select></label>
+    </div>
+  </div>
+  <div class="note small">Turning SPI on hands its pins to it; they're greyed out in the pin list above. Sending and receiving data isn't wired up yet.</div>
 </section>
 
 <details class="diag" id="diag">

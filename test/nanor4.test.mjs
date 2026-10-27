@@ -3,7 +3,7 @@
 // Run with test/run.sh.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { MODE, CAP, pinLabel } from '../extension/js/protocol.js';
+import { MODE, CAP, CMD, pinLabel, decodeCapture } from '../extension/js/protocol.js';
 import { ChrominatorLink, LINK, ProtocolError } from '../extension/js/link.js';
 
 const SIM = process.argv[2];
@@ -41,7 +41,7 @@ const tr = new SimTransport();
 const link = new ChrominatorLink(tr);
 tr.start(b => link.receive(b));
 
-await test('HELLO identifies a Nano R4: 22 pins, 14-bit ADC, no capture', async () => {
+await test('HELLO identifies a Nano R4: 22 pins, 14-bit ADC, capture at 100 samples/s', async () => {
   await link.start();
   const { hello } = link.board;
   assert.equal(hello.boardId, 4);
@@ -49,7 +49,7 @@ await test('HELLO identifies a Nano R4: 22 pins, 14-bit ADC, no capture', async 
   assert.equal(hello.numPins, 22);
   assert.equal(hello.adcBits, 14);
   assert.equal(hello.vrefMv, 5000);
-  assert.equal(hello.capturePeriodUs, 0);
+  assert.equal(hello.capturePeriodUs, 10000);
   assert.equal(link.state, LINK.UP);
 });
 
@@ -58,7 +58,7 @@ await test('caps: D0/D1 usable, PWM on D3/5/6/9/10/11, A0-A7 on pins 14-21', () 
   assert.equal(caps.length, 22);
   for (let p = 0; p < 22; p++) {
     assert.ok(!(caps[p].caps & CAP.RESERVED), `pin ${p} not reserved`);
-    assert.ok(!(caps[p].caps & CAP.CAPTURE), `pin ${p} has no capture`);
+    assert.equal(!!(caps[p].caps & CAP.CAPTURE), p >= 14, `pin ${p} capture`);
     assert.equal(!!(caps[p].caps & CAP.PWM), PWM_PINS.includes(p), `pin ${p} PWM`);
   }
   const labels = caps.map((c, p) => pinLabel(p, c));
@@ -93,8 +93,63 @@ await test('an A-pin used as a digital output is not converted (no analogRead on
   assert.equal(r.adc[4], 0, 'channel 4 not sampled while A4 is digital');
 });
 
-await test('Capture is refused on a board without a capture engine', async () => {
-  await assert.rejects(link.setMode(14, MODE.CAPTURE), e => e instanceof ProtocolError);
+await test('14-bit capture block packing round-trips (8 samples, LSB-first)', () => {
+  const vals = [0, 16383, 1, 8192, 12345, 777, 16000, 3];
+  const packed = new Uint8Array(14);
+  vals.forEach((v, k) => {
+    const bit = k * 14, w = v << (bit & 7);
+    packed[bit >> 3] |= w & 0xFF; packed[(bit >> 3) + 1] |= (w >> 8) & 0xFF; packed[(bit >> 3) + 2] |= (w >> 16) & 0xFF;
+  });
+  const c = decodeCapture(Uint8Array.from([5, 0, 7, 8, 14, ...packed]));
+  assert.equal(c.channel, 7); assert.deepEqual([...c.samples], vals);
+});
+
+await test('capture: A0 and A2 stream aligned 8-sample, 14-bit blocks at 100 samples/s', async () => {
+  const got = [];
+  const onCap = e => got.push(e.detail);
+  link.addEventListener('capture', onCap);
+  await link.setMode(14, MODE.CAPTURE);
+  await link.setMode(16, MODE.CAPTURE);
+  const t0 = performance.now();
+  await sleep(1000);
+  link.removeEventListener('capture', onCap);
+  const secs = (performance.now() - t0) / 1000;
+  const a0 = got.filter(c => c.channel === 0), a2 = got.filter(c => c.channel === 2);
+  assert.ok(a0.every(c => c.samples.length === 8), 'blocks of 8');
+  const rate = a0.length * 8 / secs;
+  assert.ok(rate > 85 && rate < 115, `A0 rate ${rate.toFixed(1)} samples/s`);
+  // The simulated signal ramps 1 count per ms, so consecutive samples are 10 counts apart...
+  for (const c of a0) for (let k = 1; k < 8; k++) assert.equal((c.samples[k] - c.samples[k - 1] + 1024) % 1024, 10);
+  // ...and A2, sampled at the same instants, reads 200 counts above A0.
+  const byBlock = new Map(a2.map(c => [c.block, c]));
+  let compared = 0;
+  for (const c of a0) {
+    const m = byBlock.get(c.block); if (!m) continue;
+    for (let k = 0; k < 8; k++) assert.equal((m.samples[k] - c.samples[k] + 1024) % 1024, 200);
+    compared++;
+  }
+  assert.ok(compared >= 8, `aligned blocks compared: ${compared}`);
+  assert.equal(link.stats.captureGaps, 0);
+});
+
+await test('capture: all eight channels at once, no drops, link healthy', async () => {
+  for (let p = 14; p < 22; p++) await link.setMode(p, MODE.CAPTURE);
+  const blocks = link.stats.captureBlocks, t0 = performance.now();
+  await sleep(1000);
+  const perSec = (link.stats.captureBlocks - blocks) / ((performance.now() - t0) / 1000);
+  assert.ok(perSec > 8 * 10.5, `blocks/s ${perSec.toFixed(1)}`);     // 8 ch x 12.5 blocks/s nominal
+  const ping = await link.request(CMD.PING);
+  assert.equal(ping[8] | (ping[9] << 8), 0, 'board dropped no blocks');
+  assert.equal(link.stats.captureGaps, 0);
+  assert.equal(link.state, LINK.UP);
+});
+
+await test('capture stops on All pins safe', async () => {
+  await link.resetPins();
+  await sleep(150);
+  const n = link.stats.captureBlocks;
+  await sleep(300);
+  assert.equal(link.stats.captureBlocks, n);
 });
 
 await test('All pins safe returns every pin to Input', async () => {

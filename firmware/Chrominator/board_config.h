@@ -21,6 +21,7 @@
 #define CAPTURE_NONE  0
 #define CAPTURE_AVR   1
 #define CAPTURE_SIM   2
+#define CAPTURE_POLL  3   // ticks run from loop() on micros(), samples taken with analogRead()
 
 // CHROMINATOR_SIM builds the Uno R3 table for the PC simulator; add CHROMINATOR_SIM_NANOR4 for the Nano R4 table.
 #if defined(ARDUINO_AVR_UNO) || (defined(CHROMINATOR_SIM) && !defined(CHROMINATOR_SIM_NANOR4))
@@ -73,8 +74,18 @@
   #define ADC_BITS        14
   #define VREF_MV         5000
   #define HAS_AVR_PORTS   0
-  #define CAPTURE_IMPL    CAPTURE_NONE   // TODO: capture on the RA4M1 (GPT/AGT timer + ADC scan)
-  #define CAPTURE_PERIOD_US 0
+  // Capture: 100 samples/s per channel, timed from loop() with micros(). Full 14-bit samples,
+  // 8 per block (an EVT_CAPTURE frame every 80 ms, so the trace scrolls smoothly).
+  #define CAPTURE_PERIOD_US 10000
+  #define CAP_BITS          14
+  #define CAP_BLOCK_SAMPLES 8
+  #define CAP_RING_BLOCKS   16
+  #define CAP_GADCC       (CAP_GADC | CAP_CAPTURE)
+  #if defined(CHROMINATOR_SIM_NANOR4)
+    #define CAPTURE_IMPL  CAPTURE_SIM
+  #else
+    #define CAPTURE_IMPL  CAPTURE_POLL
+  #endif
 
   static const uint8_t PIN_CAPS[NUM_PINS] = {
     CAP_GPIO, CAP_GPIO,                  // D0 RX1, D1 TX1 (free: USB is native)
@@ -82,9 +93,9 @@
     CAP_GPWM, CAP_GPWM, CAP_GPIO,        // D5~, D6~, D7
     CAP_GPIO, CAP_GPWM, CAP_GPWM,        // D8, D9~, D10~
     CAP_GPWM, CAP_GPIO, CAP_GPIO,        // D11~, D12, D13 (LED is a separate pin on the Nano R4)
-    CAP_GADC, CAP_GADC, CAP_GADC,        // A0 (DAC), A1, A2
-    CAP_GADC, CAP_GADC, CAP_GADC,        // A3, A4 (SDA), A5 (SCL)
-    CAP_GADC, CAP_GADC                   // A6, A7
+    CAP_GADCC, CAP_GADCC, CAP_GADCC,     // A0 (DAC), A1, A2
+    CAP_GADCC, CAP_GADCC, CAP_GADCC,     // A3, A4 (SDA), A5 (SCL)
+    CAP_GADCC, CAP_GADCC                 // A6, A7
   };
   static const uint8_t PIN_ADC[NUM_PINS] = {
     NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC, NO_ADC,

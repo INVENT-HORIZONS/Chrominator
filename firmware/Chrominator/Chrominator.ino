@@ -10,7 +10,7 @@
 // ---------------- Protocol constants ----------------
 #define PROTO_VERSION     2
 #define FW_MAJOR          1
-#define FW_MINOR          2
+#define FW_MINOR          3
 
 #define SOF               0xA5
 #define MAX_DATA          48
