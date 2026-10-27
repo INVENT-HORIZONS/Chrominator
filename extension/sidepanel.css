@@ -5,14 +5,25 @@
   --scope-bg: #fbfcfd; --scope-grid: #e1e5ea; --scope-text: #7a8490;
   --chrome: linear-gradient(180deg, #5b636d 0%, #c9d0d8 45%, #6d7680 55%, #3a4048 100%);
 }
+/* Dark theme: follows the system unless the user picked one with the ☀/☾ switch (html[data-theme]). */
+:root { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #15181c; --panel: #1f2328; --border: #343a42; --text: #e4e8ec; --muted: #8e98a3;
     --accent: #4ca0ff; --accent-text: #001428; --ok: #3fb950; --warn: #d29922; --err: #ff6b6b;
     --high: #3fb950; --low: #59626c; --eye: #ff3b30; --track: #2c3238;
     --scope-bg: #0d1013; --scope-grid: #252b31; --scope-text: #7d8791;
     --chrome: linear-gradient(180deg, #f4f7fa 0%, #9aa4ae 45%, #e8edf1 55%, #7d8791 100%);
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15181c; --panel: #1f2328; --border: #343a42; --text: #e4e8ec; --muted: #8e98a3;
+  --accent: #4ca0ff; --accent-text: #001428; --ok: #3fb950; --warn: #d29922; --err: #ff6b6b;
+  --high: #3fb950; --low: #59626c; --eye: #ff3b30; --track: #2c3238;
+  --scope-bg: #0d1013; --scope-grid: #252b31; --scope-text: #7d8791;
+  --chrome: linear-gradient(180deg, #f4f7fa 0%, #9aa4ae 45%, #e8edf1 55%, #7d8791 100%);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -43,6 +54,11 @@ button.small { font-size: 11px; margin-left: 6px; }
 
 /* Connection */
 .conn { display: flex; align-items: center; gap: 8px; }
+/* Light/dark switch next to Connect */
+.theme { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.theme button { border: none; border-radius: 0; padding: 4px 8px; font-size: 12px; background: var(--panel); color: var(--muted); }
+.theme button + button { border-left: 1px solid var(--border); }
+.theme button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
 .pill { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--track); color: var(--muted); }
 .pill[data-state="connecting"] { background: var(--warn); color: #fff; }
 .pill[data-state="up"] { background: var(--ok); color: #fff; }

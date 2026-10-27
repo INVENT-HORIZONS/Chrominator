@@ -49,6 +49,8 @@ export class Scope {
     this.clearAll();
   }
 
+  redraw() { this.#touch(); }                 // e.g. after the light/dark theme changes
+
   setActive(channels) { this.active = channels; this.#renderLegend(); this.#touch(); }
 
   clearChannel(ch) { this.channels.delete(ch); this.#touch(); }

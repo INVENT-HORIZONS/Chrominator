@@ -473,6 +473,28 @@ async function pwmSend(pin, value) {
   pwmPending.delete(pin);
 }
 
+// ---------------- light / dark theme ----------------
+// The ☀/☾ switch sets html[data-theme] and remembers it (js/theme.js applies it at load). Until the
+// user picks one, the panel follows the system setting, and the switch shows which one that is.
+const THEME_KEY = 'chrominator.theme';
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+function currentTheme() { return document.documentElement.dataset.theme || (systemDark.matches ? 'dark' : 'light'); }
+function syncThemeSwitch() {
+  const t = currentTheme();
+  $('themeLight').setAttribute('aria-pressed', String(t === 'light'));
+  $('themeDark').setAttribute('aria-pressed', String(t === 'dark'));
+}
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem(THEME_KEY, t); } catch {}
+  syncThemeSwitch();
+  scope.redraw();
+}
+$('themeLight').addEventListener('click', () => setTheme('light'));
+$('themeDark').addEventListener('click', () => setTheme('dark'));
+systemDark.addEventListener('change', syncThemeSwitch);
+syncThemeSwitch();
+
 // ---------------- wiring ----------------
 $('btnConnect').onclick = () => (link || transport) ? disconnect() : connect(false);
 $('btnChoose').onclick = () => connect(true);

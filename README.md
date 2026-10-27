@@ -73,6 +73,9 @@ bit-order settings are there, but sending and receiving data isn't implemented y
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
 
+**Light / dark.** The ☀ Light / ☾ Dark switch next to Connect sets the colour theme and is remembered.
+Until you pick one, Chrominator follows the system setting.
+
 Every panel folds up: click its heading (Oscilloscope, Generator, Pins, UART, I²C Port, SPI Port, Diagnostics, Event log). Chrominator
 remembers which ones you folded.
 

@@ -159,8 +159,12 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   shows `reads HIGH!/LOW!` — a short or overload hint.
 - Firmware: non-blocking `loop()`; byte-at-a-time state machine (`rxByte`) with a 50 ms
   inter-byte timeout; reply built in `tx[]` with `txBegin/txU8/txU16/txU32`; little-endian.
-- Styling: CSS custom properties on `:root` with a `prefers-color-scheme: dark` override;
-  Segoe UI / system-ui for UI, Consolas for numbers. The "eye" (red LED) is the heartbeat indicator.
+- Styling: CSS custom properties on `:root`; dark values apply under `prefers-color-scheme: dark`
+  unless `html[data-theme="light"]`, and always under `html[data-theme="dark"]` (keep the two dark
+  blocks identical). The ☀/☾ switch (`setTheme` in `ui.js`) sets `data-theme` and saves
+  `chrominator.theme`; `js/theme.js` (classic script in `<head>`) applies it before first paint.
+  Canvas colours are read from CSS on each draw; call `scope.redraw()` after a theme change.
+  Fonts: Segoe UI / system-ui for UI, Consolas for numbers. The "eye" (red LED) is the heartbeat indicator.
 
 ## Building and testing
 

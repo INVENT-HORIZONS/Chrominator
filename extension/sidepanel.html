@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chrominator</title>
 <link rel="stylesheet" href="sidepanel.css">
+<script src="js/theme.js"></script>
 </head>
 <body>
 <header class="head">
@@ -19,6 +20,10 @@
 
 <section class="conn">
   <button id="btnConnect" class="primary">Connect</button>
+  <span class="theme" role="group" aria-label="Colour theme">
+    <button id="themeLight" type="button" title="Light mode">☀ Light</button>
+    <button id="themeDark" type="button" title="Dark mode">☾ Dark</button>
+  </span>
   <span class="pill" id="linkPill" data-state="stopped">Disconnected</span>
   <span class="rtt" id="rtt"></span>
 </section>
