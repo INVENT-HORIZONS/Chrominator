@@ -43,6 +43,7 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `extension/terminal.html` / `.css`, `js/terminal.js` | UART terminal window (TX red, RX green). |
+| `extension/scope.html` / `scopewin.css`, `js/scopewin.js`, `js/scopebridge.js` | Pop-out oscilloscope window for one channel, and its side-panel relay. |
 | `extension/js/termbridge.js` | Side-panel end of the terminal: BroadcastChannel relay + history. |
 | `extension/js/theme.js` | Applies the saved light/dark theme before first paint. |
 | `firmware/Chrominator/uart.h` | UART bridge (Serial1 ↔ extension), Nano R4. |
@@ -157,6 +158,14 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Startup channels**: after `link.start()` in `connect()`, `startupScope()` puts the ADC channels in
   `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
+- **Pop-out oscilloscope** (experiment, user asked for A0 only: `POPOUT_CHANNELS = [0]` in `ui.js`):
+  in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button, which opens
+  `scope.html?ch=N` as a popup window (`ScopeBridge.open`; a second click focuses it). The window
+  (`js/scopewin.js`) runs its own `Scope` instance (own timebase/scale/pause/CSV; timebase saved as
+  `chrominator.popoutTimebase`) fed by `js/scopebridge.js` over BroadcastChannel `chrominator-scope`:
+  status every second (hello, active, net name), each block, and ~4096 blocks of history on `hello`.
+  The window ignores live blocks until its history arrives (an older block after a newer one
+  looks like a board restart to `Scope.add`). The side panel keeps drawing the channel as before.
 - **Net names**: each pin row has `input.net` (4th grid column, 84px) for the circuit net it's wired
   to, max 16 chars, saved in localStorage `chrominator.netNames.<boardId>` ({ pin: name }).
   `scope.setNames(adcNames())` shows A-pin names in the Oscilloscope legend ("A0 VBAT") and CSV

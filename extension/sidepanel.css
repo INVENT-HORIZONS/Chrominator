@@ -93,6 +93,8 @@ h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
 #uartRxRow.on .busname { color: var(--uart-rx); }
 #uartTxRow.on .busname { color: var(--uart-tx); }
 #uartTerm { padding: 2px 10px; font-size: 12px; }
+.busrole.capture.dot { padding: 1px 4px; gap: 0; }
+.pin .popout { padding: 1px 8px; font-size: 11px; white-space: nowrap; }
 .pin.reserved { color: var(--muted); }
 .pin select { width: 100%; font: inherit; padding: 3px 4px; color: var(--text); background: var(--panel);
               border: 1px solid var(--border); border-radius: 4px; }

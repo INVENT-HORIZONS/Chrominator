@@ -1,6 +1,7 @@
 // Chrominator side panel UI: connection handling and the pin table.
 import { MODE, MODE_NAME, CAP, UART_FORMATS, pinLabel } from './protocol.js';
 import { TerminalBridge } from './termbridge.js';
+import { ScopeBridge } from './scopebridge.js';
 import { ChrominatorLink, LINK } from './link.js';
 import { SerialTransport, choosePort, lastUsedPort, describePort } from './serial.js';
 import { Scope, TRACE_COLORS } from './scope.js';
@@ -81,6 +82,21 @@ const term = new TerminalBridge({
   send: async bytes => {
     if (!uartIsOn('tx')) throw new Error('UART TX is off');
     await link.uartSend(bytes);
+  }
+});
+
+// Pop-out oscilloscope windows (experiment: only A0 has the button for now). The channel keeps
+// drawing in the side panel too; the window gets its blocks through ScopeBridge.
+const POPOUT_CHANNELS = [0];
+const adcPin = ch => rows.findIndex(r => r?.caps.adcChannel === ch);
+const scopeBridge = new ScopeBridge({
+  status: ch => {
+    const pin = adcPin(ch);
+    return {
+      hello: link?.board?.hello || null,
+      active: pin >= 0 && link?.board?.config[pin]?.mode === MODE.CAPTURE,
+      name: pin >= 0 ? netNames[pin] || '' : ''
+    };
   }
 });
 
@@ -181,7 +197,7 @@ async function connect(forceChoose = false) {
     link.addEventListener('config', e => renderAllPins(e.detail));
     link.addEventListener('inputs', e => updateInputs(e.detail));
     link.addEventListener('ping', e => onPing(e.detail));
-    link.addEventListener('capture', e => scope.add(e.detail));
+    link.addEventListener('capture', e => { scope.add(e.detail); scopeBridge.block(e.detail); });
     link.addEventListener('uart-rx', e => term.data('rx', e.detail));
     try {
       await link.start();
@@ -244,6 +260,7 @@ function setNetName(pin, name) {
   try { localStorage.setItem(NET_KEY(netBoardId), JSON.stringify(netNames)); } catch {}
   if (rows[pin]) rows[pin].el.querySelector('.net').value = name;
   scope.setNames(adcNames());
+  scopeBridge.statusAll();
 }
 // ADC channel -> net name, for the Oscilloscope legend and CSV.
 function adcNames() {
@@ -254,6 +271,7 @@ function adcNames() {
 
 function buildPins({ hello, caps, config }) {
   loadNetNames(hello.boardId);
+  scopeBridge.clear();
   $('boardInfo').textContent = `${hello.boardName} · firmware ${hello.fwMajor}.${hello.fwMinor} · ${hello.adcBits}-bit ADC`;
   scope.setBoard(hello);
   const tpl = $('pinRow');
@@ -387,6 +405,7 @@ function renderAllPins(config) {
   const capturing = config.flatMap((cfg, pin) =>
     cfg.mode === MODE.CAPTURE && rows[pin]?.caps.adcChannel != null ? [rows[pin].caps.adcChannel] : []);
   scope.setActive(capturing);
+  scopeBridge.statusAll();
   $('scopeSection').hidden = !link?.board;
 }
 
@@ -419,10 +438,21 @@ function renderPin(pin, { mode, value }) {
     if (row.kind === 'capture') return;
     row.kind = 'capture';
     row.refs = {};
+    const ch = row.caps.adcChannel;
     const badge = el('span', 'busrole capture', 'Oscilloscope');     // the colour square shows its trace
-    badge.style.setProperty('--c', TRACE_COLORS[row.caps.adcChannel % TRACE_COLORS.length]);
+    badge.style.setProperty('--c', TRACE_COLORS[ch % TRACE_COLORS.length]);
     badge.title = 'Drawn on the Oscilloscope panel. Stop it with the ✕ next to this trace there.';
     row.ctl.replaceChildren(badge);
+    if (POPOUT_CHANNELS.includes(ch)) {
+      // Room is tight: the button replaces the word, keeping the colour square.
+      badge.textContent = '';
+      badge.classList.add('dot');
+      const pop = el('button', 'popout', 'Pop out');
+      pop.type = 'button';
+      pop.title = `Open A${ch} in its own oscilloscope window (it keeps showing here too)`;
+      pop.addEventListener('click', () => scopeBridge.open(ch).catch(e => log('error', `Pop out: ${e.message}`)));
+      row.ctl.append(pop);
+    }
     return;
   }
   if (owner) {
@@ -504,7 +534,7 @@ function updateInputs({ levels, adc }) {
 
 async function changeMode(pin, mode) {
   try {
-    if (mode === MODE.CAPTURE) scope.clearChannel(rows[pin].caps.adcChannel);   // start a fresh trace
+    if (mode === MODE.CAPTURE) { scope.clearChannel(rows[pin].caps.adcChannel); scopeBridge.clear(rows[pin].caps.adcChannel); }   // start a fresh trace
     await link.setMode(pin, mode);
   } catch (e) {
     log('error', `${pinLabel(pin, rows[pin].caps)}: could not set ${MODE_NAME[mode]}: ${e.message}`);

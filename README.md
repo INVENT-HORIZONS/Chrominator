@@ -75,6 +75,10 @@ SCL A5) or **SPI** (SCK D13, MOSI D11, MISO D12, SS D10). The bus's pins are put
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
 bit-order settings are there, but sending and receiving data isn't implemented yet.
 
+**Pop out (A0, experimental).** While A0 is in Oscilloscope mode its row has a **Pop out** button
+that opens A0 in its own resizable oscilloscope window, with its own timebase, scale, Pause and
+save CSV. A0 keeps drawing in the side panel too.
+
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
 

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chrominator Oscilloscope</title>
+<link rel="stylesheet" href="sidepanel.css">
+<link rel="stylesheet" href="scopewin.css">
+<script src="js/theme.js"></script>
+</head>
+<body class="scopewin">
+<header class="swbar">
+  <span class="eye on" aria-hidden="true"></span>
+  <b class="swtitle" id="swTitle">Oscilloscope</b>
+  <span class="spacer"></span>
+  <div class="scopectl">
+    <div class="timebase" title="Time across the screen">
+      <button id="tbLess" type="button" aria-label="Shorter timebase">◀</button>
+      <span id="tbValue">10 s</span>
+      <button id="tbMore" type="button" aria-label="Longer timebase">▶</button>
+    </div>
+    <select id="scopeWindow" hidden>
+      <option value="1">1 s</option><option value="2">2 s</option><option value="5">5 s</option>
+      <option value="10" selected>10 s</option><option value="30">30 s</option>
+      <option value="60">60 s</option><option value="120">2 min</option>
+    </select>
+    <select id="scopeRange" title="Vertical scale">
+      <option value="full">0–5 V</option><option value="auto">Auto</option>
+    </select>
+    <button id="scopeRun">Pause</button>
+  </div>
+</header>
+<div class="banner" id="offline" hidden></div>
+<canvas id="scopeCanvas"></canvas>
+<footer class="swfoot">
+  <div id="scopeLegend" class="legend"></div>
+  <span class="note small" id="scopeRate"></span>
+  <span class="scopebtns">
+    <button id="scopeClear" class="link small">clear</button>
+    <button id="scopeSave" class="link small">save CSV</button>
+  </span>
+</footer>
+<script type="module" src="js/scopewin.js"></script>
+</body>
+</html>
