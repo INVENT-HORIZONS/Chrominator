@@ -24,6 +24,14 @@
 </section>
 <div class="portline"><span id="portName"></span><button id="btnChoose" class="link">Choose a different port…</button></div>
 
+<section class="pins" id="pinsSection" hidden>
+  <div class="sectionhead">
+    <h2>Pins</h2>
+    <button id="btnSafe" title="Set every pin back to a plain input">All pins safe</button>
+  </div>
+  <div id="pinList" class="pinlist"></div>
+</section>
+
 <section class="buses" id="busSection" hidden>
   <div class="sectionhead"><h2>Buses</h2></div>
   <div class="bus" id="busI2c">
@@ -60,15 +68,7 @@
       </select></label>
     </div>
   </div>
-  <div class="note small">Turning a bus on hands its pins to the bus; they're greyed out below. Sending and receiving data isn't wired up yet.</div>
-</section>
-
-<section class="pins" id="pinsSection" hidden>
-  <div class="sectionhead">
-    <h2>Pins</h2>
-    <button id="btnSafe" title="Set every pin back to a plain input">All pins safe</button>
-  </div>
-  <div id="pinList" class="pinlist"></div>
+  <div class="note small">Turning a bus on hands its pins to the bus; they're greyed out in the pin list above. Sending and receiving data isn't wired up yet.</div>
 </section>
 
 <section class="scope" id="scopeSection" hidden>

@@ -56,7 +56,7 @@ just makes the number flicker; remembered per channel), and **save CSV** to expo
 2 minutes per channel). It is meant for slow signals, such as a battery voltage sagging after
 it's disconnected, not as a fast oscilloscope.
 
-**Buses.** Above the pins, switch on **I²C** (SDA A4, SCL A5) or **SPI** (SCK D13, MOSI D11,
+**Buses.** Below the pins, switch on **I²C** (SDA A4, SCL A5) or **SPI** (SCK D13, MOSI D11,
 MISO D12, SS D10). The bus's pins are put back to plain inputs, greyed out in the pin list and
 labelled with their role until the bus is switched off. The role (Master or Slave), clock, mode and
 bit-order settings are there, but sending and receiving data isn't implemented yet.
