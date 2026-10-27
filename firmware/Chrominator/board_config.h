@@ -103,14 +103,14 @@
   };
   static const uint8_t ADC_PIN[NUM_ADC] = { A0, A1, A2, A3, A4, A5, A6, A7 };
 
+  // No hardware watchdog on the Nano R4: with it running, the IDE's automatic reset into the
+  // bootloader fails ("Lost device after RESET?", exit status 74) and uploads need a double-tap
+  // of reset. The link failsafe (all pins to INPUT after LINK_TIMEOUT_MS of silence) still applies.
+  #define HW_WATCHDOG_BEGIN()   do {} while (0)
+  #define HW_WATCHDOG_KICK()    do {} while (0)
   #if defined(CHROMINATOR_SIM_NANOR4)
-    #define HW_WATCHDOG_BEGIN()   do {} while (0)
-    #define HW_WATCHDOG_KICK()    do {} while (0)
     #define ADC_SETUP()           do {} while (0)
   #else
-    #include <WDT.h>
-    #define HW_WATCHDOG_BEGIN()   WDT.begin(1000)
-    #define HW_WATCHDOG_KICK()    WDT.refresh()
     #define ADC_SETUP()           analogReadResolution(ADC_BITS)
   #endif
 

@@ -179,7 +179,8 @@ Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on 
   up to 2 more times.
 
 **Board side**
-- A hardware watchdog (about 1 s) resets the board if the firmware ever hangs.
+- A hardware watchdog (about 1 s) resets the board if the firmware ever hangs (Uno only; the
+  Nano R4 runs without one because it blocked the IDE's automatic upload reset).
 - After the host has said HELLO, the board expects a valid frame at least every
   `link_timeout_ms` (**1500 ms**). If none arrives, the board **fails safe**: all pins go to the
   safe state, the `FAILSAFE` flag is set, EVT_FAILSAFE is sent, and the board waits for the

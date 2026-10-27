@@ -85,6 +85,9 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - The Uno R3 auto-resets when the port opens; the host sends HELLO every ~400 ms for up to 5 s
   and ignores bootloader junk thanks to framing/CRC.
 - D0/D1 are RESERVED on the Uno (USB serial). On the Nano R4 they are ordinary pins.
+- **No hardware watchdog on the Nano R4.** With `WDT.begin()` running, the IDE's DFU detach into
+  the bootloader failed ("Lost device after RESET?", exit status 74) and uploads needed a
+  double-tap of reset. The link failsafe still applies. Don't re-enable it without testing uploads.
 - **On the Renesas (R4) core `analogRead()` switches the pin to its analog function.** Without a
   capture engine, `capAdcValue()` therefore converts only channels in ANALOG mode and returns 0
   for the rest; never poll `analogRead()` on an A-pin that is in a digital mode.
