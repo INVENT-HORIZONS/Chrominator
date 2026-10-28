@@ -87,7 +87,7 @@ const term = new TerminalBridge({
 
 // Pop-out oscilloscope windows (experiment: only A0 has the button for now). The channel keeps
 // drawing in the side panel too; the window gets its blocks through ScopeBridge.
-const POPOUT_CHANNELS = [0];
+const POPOUT_CHANNELS = [0, 1];
 const adcPin = ch => rows.findIndex(r => r?.caps.adcChannel === ch);
 const scopeBridge = new ScopeBridge({
   status: ch => {

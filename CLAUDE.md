@@ -159,7 +159,7 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
 - **Startup channels**: after `link.start()` in `connect()`, `startupScope()` puts the ADC channels in
   `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
-- **Pop-out oscilloscope** (experiment, user asked for A0 only: `POPOUT_CHANNELS = [0]` in `ui.js`):
+- **Pop-out oscilloscope** (A0 and A1, as the user asked: `POPOUT_CHANNELS = [0, 1]` in `ui.js`):
   in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button. **It must stay
   on top of the browser** (user requirement). Extensions can't pin normal windows, so the only way is
   a **Document Picture-in-Picture** window (`openPipScope` in `js/scopeview.js`); Chrome keeps PiP
