@@ -161,12 +161,14 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
 - **Pop-out oscilloscope** (experiment, user asked for A0 only: `POPOUT_CHANNELS = [0]` in `ui.js`):
   in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button. **It must stay
-  on top of the browser** (user requirement). Extensions can't pin normal windows, so Pop out opens
-  a **Document Picture-in-Picture** window (`openPipScope` in `js/scopeview.js`, called from the
-  click in the side panel): Chrome keeps PiP windows above all others. Only ONE PiP window can exist
-  per browser; opening another replaces it. If PiP is refused, it falls back to a regular popup
-  window `scope.html?ch=N` (`ScopeBridge.open`) whose **📌 Keep on top** button moves the view into
-  PiP and minimizes itself (closing the PiP restores it).
+  on top of the browser** (user requirement). Extensions can't pin normal windows, so the only way is
+  a **Document Picture-in-Picture** window (`openPipScope` in `js/scopeview.js`); Chrome keeps PiP
+  windows above all others, and allows only ONE per browser (opening another replaces it).
+  **Do not request PiP from the side panel:** in real Chrome the request resolves but no window
+  ever appears (v1.14.0 did this; the user saw nothing). Headless Chromium tests passed, so they
+  can't catch it. PiP needs a real browser window as opener, so Pop out opens the regular popup window
+  `scope.html?ch=N` (`ScopeBridge.open`), and its **📌 Keep on top** button opens the PiP, moves
+  the view into it and minimizes itself (closing the PiP restores it).
   `ScopeView` (js/scopeview.js) builds the whole view into any document and runs its own `Scope`
   (own timebase/scale/pause/CSV; timebase saved as `chrominator.popoutTimebase`), fed by
   `js/scopebridge.js` over BroadcastChannel `chrominator-scope`: views say hello/bye with an id;

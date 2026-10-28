@@ -77,8 +77,8 @@ bit-order settings are there, but sending and receiving data isn't implemented y
 
 **Pop out (A0, experimental).** While A0 is in Oscilloscope mode its row has a **Pop out** button
 that opens A0 in its own resizable oscilloscope window, with its own timebase, scale, Pause and
-save CSV. The window is a Picture-in-Picture window, so it **stays on top** of the browser (and other
-programs) while you work. A0 keeps drawing in the side panel too. Chrome allows one
+save CSV. Click **📌 Keep on top** in that window to turn it into a Picture-in-Picture window, which
+**stays on top** of the browser (and other programs) while you work. A0 keeps drawing in the side panel too. Chrome allows one
 Picture-in-Picture window at a time.
 
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
