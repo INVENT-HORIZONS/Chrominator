@@ -31,7 +31,7 @@ export class Scope {
     runButton.addEventListener('click', () => this.setPaused(!this.paused));
     clearButton.addEventListener('click', () => this.clearAll());
     saveButton.addEventListener('click', () => this.saveCsv());
-    // The canvas may live in another window (a Picture-in-Picture pop-out), so window-level APIs
+    // The canvas may live in another window (a pop-out), so window-level APIs
     // are taken from the canvas's own window: its animation frames keep running even when the
     // window that runs this code is hidden or minimized.
     const view = this.view = canvas.ownerDocument.defaultView || window;

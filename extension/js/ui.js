@@ -100,13 +100,10 @@ const scopeBridge = new ScopeBridge({
   }
 });
 
-// Pop out: a regular pop-out window (scope.html). Its "📌 Keep on top" button then moves the scope
-// into an always-on-top Picture-in-Picture window. Opening Picture-in-Picture straight from the side
-// panel does not work in real Chrome (the request succeeds but no window appears: PiP needs a
-// browser window/tab as its opener), so it must be asked for from the pop-out window.
+// Pop out: the channel in its own regular window (scope.html); it keeps drawing here too.
 function popOut(ch) {
   scopeBridge.open(ch)
-    .then(() => log('info', `A${ch} popped out. Use 📌 Keep on top in that window to keep it above the browser.`))
+    .then(() => log('info', `A${ch} popped out.`))
     .catch(e => log('error', `Pop out: ${e.message}`));
 }
 
@@ -238,7 +235,7 @@ async function disconnect(say = true) {
   uart = null;
   syncUartControls();
   $('scopeSection').hidden = true;
-  // Close every pop-out: oscilloscope windows (and an always-on-top one with them) and the terminal.
+  // Close every pop-out: oscilloscope windows and the terminal.
   scopeBridge.closeAll();
   term.closeAll();
   renderStats();

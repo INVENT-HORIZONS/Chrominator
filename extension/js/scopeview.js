@@ -1,6 +1,5 @@
-// One channel's pop-out oscilloscope view. It builds its own markup into any document: the
-// regular pop-out window (scope.html) or a Picture-in-Picture window, which Chrome keeps on top of
-// all other windows. It runs its own Scope (own timebase, scale, pause and CSV) fed by the side
+// One channel's pop-out oscilloscope view, built into the pop-out window's document (scope.html).
+// It runs its own Scope (own timebase, scale, pause and CSV) fed by the side
 // panel through ScopeBridge (BroadcastChannel); the side panel keeps drawing the channel too.
 import { Scope, TRACE_COLORS } from './scope.js';
 import { SCOPE_CHANNEL } from './scopebridge.js';
@@ -27,7 +26,6 @@ const MARKUP = `
       <option value="full">0–5 V</option><option value="auto">Auto</option>
     </select>
     <button data-id="run">Pause</button>
-    <button data-id="pin" type="button" hidden title="Keep this scope on top of all other windows (Picture-in-Picture)">📌 Keep on top</button>
   </div>
 </header>
 <div class="banner" data-id="offline" hidden></div>
@@ -44,8 +42,8 @@ const MARKUP = `
 let nextId = 1;
 
 export class ScopeView {
-  // doc: the document to build into. onPin: if given, shows "Keep on top" and calls it on click.
-  constructor(doc, ch, { onPin } = {}) {
+  // doc: the document to build into; ch: the ADC channel.
+  constructor(doc, ch) {
     this.doc = doc; this.chNum = ch;
     this.id = `${Date.now().toString(36)}-${nextId++}-${Math.random().toString(36).slice(2, 6)}`;
     doc.body.classList.add('scopewin');
@@ -68,7 +66,6 @@ export class ScopeView {
     $('tbLess').onclick = () => this.#step(-1);
     $('tbMore').onclick = () => this.#step(1);
     this.#syncTb();
-    if (onPin) { $('pin').hidden = false; $('pin').onclick = onPin; }
 
     this.boardKey = null; this.lastStatus = 0; this.active = false; this.haveHistory = false;
     this.bc = new BroadcastChannel(SCOPE_CHANNEL);
@@ -138,22 +135,4 @@ export class ScopeView {
     this.$('offline').hidden = !msg;
     this.$('canvas').style.opacity = live && this.active ? '' : '.6';
   }
-}
-
-// Open a Picture-in-Picture window (always on top) showing channel ch. Must be called from a click.
-// Chrome allows one Picture-in-Picture window at a time; opening another replaces it.
-// Resolves to the PiP window, or throws if the browser refuses.
-export async function openPipScope(ch, { width = 820, height = 440 } = {}) {
-  const pip = await documentPictureInPicture.requestWindow({ width, height });
-  const doc = pip.document;
-  for (const href of ['sidepanel.css', 'scopewin.css']) {
-    const l = doc.createElement('link');
-    l.rel = 'stylesheet'; l.href = chrome.runtime.getURL(href);
-    doc.head.append(l);
-  }
-  const t = document.documentElement.dataset.theme;
-  if (t) doc.documentElement.dataset.theme = t;
-  const view = new ScopeView(doc, ch);
-  pip.addEventListener('pagehide', () => view.destroy());
-  return pip;
 }

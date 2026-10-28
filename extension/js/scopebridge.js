@@ -52,7 +52,7 @@ export class ScopeBridge {
     if (this.#watched(b.channel)) this.ch.postMessage({ type: 'block', ch: b.channel, block: b });
   }
 
-  // Disconnected: close every pop-out window (an always-on-top PiP closes with its window). Windows
+  // Disconnected: close every pop-out window. Windows
   // this side panel opened are removed directly; 'close' also reaches any others (e.g. opened by an
   // earlier side panel session), which close themselves.
   closeAll() {

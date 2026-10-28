@@ -43,8 +43,8 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 | `extension/js/ui.js` | Side panel UI: connect/disconnect, pin table, diagnostics, event log. |
 | `extension/chooser.html` / `.js` | Port-picker page opened in a normal tab (see below). |
 | `extension/terminal.html` / `.css`, `js/terminal.js` | UART terminal window (TX red, RX green). |
-| `extension/js/scopeview.js`, `js/scopebridge.js` | Pop-out oscilloscope view (PiP, always on top) and its side-panel relay. |
-| `extension/scope.html` / `scopewin.css`, `js/scopewin.js` | Fallback regular pop-out window (with Keep on top). |
+| `extension/scope.html` / `scopewin.css`, `js/scopewin.js`, `js/scopeview.js` | Pop-out oscilloscope window for one channel. |
+| `extension/js/scopebridge.js` | Side-panel relay for the pop-out windows. |
 | `extension/js/termbridge.js` | Side-panel end of the terminal: BroadcastChannel relay + history. |
 | `extension/js/theme.js` | Applies the saved light/dark theme before first paint. |
 | `firmware/Chrominator/uart.h` | UART bridge (Serial1 ↔ extension), Nano R4. |
@@ -160,27 +160,22 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   `STARTUP_SCOPE_CHANNELS` (A0, A1) into CAPTURE, only if the board can capture and the pin is a
   plain INPUT not owned by a bus/UART. Only at connect, not on resync, so user changes stand.
 - **Pop-out oscilloscope** (A0 and A1, as the user asked: `POPOUT_CHANNELS = [0, 1]` in `ui.js`):
-  in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button. **It must stay
-  on top of the browser** (user requirement). Extensions can't pin normal windows, so the only way is
-  a **Document Picture-in-Picture** window (`openPipScope` in `js/scopeview.js`); Chrome keeps PiP
-  windows above all others, and allows only ONE per browser (opening another replaces it).
-  **Do not request PiP from the side panel:** in real Chrome the request resolves but no window
-  ever appears (v1.14.0 did this; the user saw nothing). Headless Chromium tests passed, so they
-  can't catch it. PiP needs a real browser window as opener, so Pop out opens the regular popup window
-  `scope.html?ch=N` (`ScopeBridge.open`), and its **📌 Keep on top** button opens the PiP, moves
-  the view into it and minimizes itself (closing the PiP restores it).
-  `ScopeView` (js/scopeview.js) builds the whole view into any document and runs its own `Scope`
-  (own timebase/scale/pause/CSV; timebase saved as `chrominator.popoutTimebase`), fed by
-  `js/scopebridge.js` over BroadcastChannel `chrominator-scope`: views say hello/bye with an id;
-  the bridge sends status every second, each block for watched channels, and ~4096 blocks of
-  history on hello. A view ignores live blocks until its history arrives (an older block after a
-  newer one looks like a board restart to `Scope.add`). `Scope` takes window APIs (rAF,
-  ResizeObserver, getComputedStyle, createElement) from its canvas's own window, so it keeps
-  drawing in a PiP window even when the window running the code is hidden.
+  in Oscilloscope mode the row's badge becomes a colour square + **Pop out** button, which opens
+  the regular popup window `scope.html?ch=N` (`ScopeBridge.open`; a second click focuses it).
+  `ScopeView` (js/scopeview.js) builds the view and runs its own `Scope` (own timebase/scale/
+  pause/CSV; timebase saved as `chrominator.popoutTimebase`), fed by `js/scopebridge.js` over
+  BroadcastChannel `chrominator-scope`: views say hello/bye with an id; the bridge sends status
+  every second, each block for watched channels, and ~4096 blocks of history on hello. A view
+  ignores live blocks until its history arrives (an older block after a newer one looks like a
+  board restart to `Scope.add`). The side panel keeps drawing the channel as before.
+  **No "keep on top".** The user asked for always-on-top windows; the only way is Document
+  Picture-in-Picture. From the side panel it fails silently in real Chrome; from the pop-out
+  window, behind a "📌 Keep on top" button, it worked. The user then asked to remove it (too
+  confusing), so it's gone (v1.15.2). Don't bring it back unless asked.
 - **Disconnect closes every pop-out** (user requirement): `disconnect()` (also run on USB unplug)
   calls `scopeBridge.closeAll()` and `term.closeAll()`: tracked windows are removed with
   `chrome.windows.remove`, and a `{ type: 'close' }` broadcast makes any other scope/terminal window
-  close itself. An always-on-top PiP closes with its opener window.
+  close itself.
 - **Net names**: each pin row has `input.net` (4th grid column, 84px) for the circuit net it's wired
   to, max 16 chars, saved in localStorage `chrominator.netNames.<boardId>` ({ pin: name }).
   `scope.setNames(adcNames())` shows A-pin names in the Oscilloscope legend ("A0 VBAT") and CSV

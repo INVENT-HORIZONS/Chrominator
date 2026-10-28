@@ -76,14 +76,11 @@ labelled with their role until the bus is switched off. The role (Master or Slav
 bit-order settings are there, but sending and receiving data isn't implemented yet.
 
 **Pop out (A0, A1).** While A0 or A1 is in Oscilloscope mode its row has a **Pop out** button
-that opens that channel in its own resizable oscilloscope window, with its own timebase, scale, Pause and
-save CSV. Click **📌 Keep on top** in that window to turn it into a Picture-in-Picture window, which
-**stays on top** of the browser (and other programs) while you work. The channel keeps drawing in the side panel too. Chrome allows one
-Picture-in-Picture window at a time: keeping a second channel on top hands the first one back to
-its regular window.
+that opens that channel in its own resizable oscilloscope window, with its own timebase, scale,
+Pause and save CSV. The channel keeps drawing in the side panel too.
 
-Disconnecting (or unplugging the board) closes all pop-out windows: oscilloscope windows, the
-always-on-top window and the UART terminal.
+Disconnecting (or unplugging the board) closes all pop-out windows: the oscilloscope windows and
+the UART terminal.
 
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
