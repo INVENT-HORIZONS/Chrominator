@@ -1,17 +1,19 @@
 // Chrominator firmware — exposes the board's GPIO, PWM and ADC to the Chrominator
-// Chrome extension over USB serial. Protocol: docs/PROTOCOL.md (version 2).
+// Chrome extension over a USB serial port. Protocol: docs/PROTOCOL.md (version 2).
 //
 // Boards: Arduino Nano R4 and Uno R3 (tested); Uno R4 Minima/WiFi in board_config.h (untested).
 // Nano R4 also bridges its UART (Serial1, D0 RX / D1 TX) to the extension's terminal.
-// Serial: 115200 8N1. Do not use Serial for anything else (no Serial.print debugging):
-// every byte on the port must be a protocol frame.
+// Serial is the link to the extension. On the Nano R4 it is the chip's native USB (USB CDC): the
+// baud rate passed to Serial.begin() is ignored and data moves at USB speed. On the Uno R3 it is a
+// real 115200-baud UART behind the board's USB-to-serial chip (about 11.5 kB/s).
+// Do not use Serial for anything else (no Serial.print debugging): every byte must be a frame.
 
 #include "board_config.h"
 
 // ---------------- Protocol constants ----------------
 #define PROTO_VERSION     2
 #define FW_MAJOR          1
-#define FW_MINOR          6
+#define FW_MINOR          7
 
 #define SOF               0xA5
 #define MAX_DATA          48
@@ -21,8 +23,9 @@
 enum Cmd : uint8_t {
   CMD_PING = 0x01, CMD_HELLO = 0x02, CMD_GET_CAPS = 0x03, CMD_GET_CONFIG = 0x04,
   CMD_SET_MODE = 0x10, CMD_WRITE = 0x11, CMD_READ_ALL = 0x12, CMD_RESET_PINS = 0x13,
-  CMD_UART_CONFIG = 0x20, CMD_UART_TX = 0x21,
-  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62, EVT_UART_RX = 0x63
+  CMD_UART_CONFIG = 0x20, CMD_UART_TX = 0x21, CMD_BENCH = 0x30,
+  EVT_BOOT = 0x60, EVT_FAILSAFE = 0x61, EVT_CAPTURE = 0x62, EVT_UART_RX = 0x63,
+  EVT_BENCH = 0x64, EVT_BENCH_DONE = 0x65
 };
 enum Status : uint8_t {
   ST_OK = 0, ST_UNKNOWN_CMD = 1, ST_BAD_LENGTH = 2, ST_BAD_PIN = 3, ST_BAD_MODE = 4,
@@ -59,18 +62,49 @@ static uint8_t crc8Update(uint8_t crc, uint8_t b) {
   return crc;
 }
 
+// The whole frame goes out in one write: on native USB (Nano R4) each write can become its own USB
+// packet, so six small writes per frame would waste most of the link.
 static void sendFrame(uint8_t seq, uint8_t cmd, const uint8_t *data, uint8_t len) {
+  uint8_t f[MAX_DATA + 5];
+  f[0] = SOF; f[1] = len; f[2] = seq; f[3] = cmd;
   uint8_t crc = 0;
   crc = crc8Update(crc, len);
   crc = crc8Update(crc, seq);
   crc = crc8Update(crc, cmd);
-  for (uint8_t i = 0; i < len; i++) crc = crc8Update(crc, data[i]);
-  Serial.write(SOF);
-  Serial.write(len);
-  Serial.write(seq);
-  Serial.write(cmd);
-  if (len) Serial.write(data, len);
-  Serial.write(crc);
+  for (uint8_t i = 0; i < len; i++) { f[4 + i] = data[i]; crc = crc8Update(crc, data[i]); }
+  f[4 + len] = crc;
+  Serial.write(f, (size_t)len + 5);
+}
+
+// ---------------- Speed test ----------------
+// CMD_BENCH: for duration_ms the board sends full-size EVT_BENCH frames (a u32 frame counter plus
+// filler) as fast as the link takes them, a few per loop() pass so commands are still answered,
+// then EVT_BENCH_DONE with what it sent. The host measures what arrived.
+#define BENCH_PER_PASS 8
+static bool     benchOn = false;
+static uint32_t benchStartMs, benchMs, benchStartUs, benchFrames, benchBytes;
+
+static void benchService() {
+  if (!benchOn) return;
+  if ((uint32_t)(millis() - benchStartMs) >= benchMs) {
+    uint32_t us = micros() - benchStartUs;
+    uint8_t d[12] = {
+      (uint8_t)benchFrames, (uint8_t)(benchFrames >> 8), (uint8_t)(benchFrames >> 16), (uint8_t)(benchFrames >> 24),
+      (uint8_t)benchBytes, (uint8_t)(benchBytes >> 8), (uint8_t)(benchBytes >> 16), (uint8_t)(benchBytes >> 24),
+      (uint8_t)us, (uint8_t)(us >> 8), (uint8_t)(us >> 16), (uint8_t)(us >> 24) };
+    benchOn = false;
+    sendFrame(0, EVT_BENCH_DONE, d, sizeof d);
+    return;
+  }
+  uint8_t d[MAX_DATA];
+  for (uint8_t i = 4; i < MAX_DATA; i++) d[i] = (uint8_t)(i * 7);
+  for (uint8_t n = 0; n < BENCH_PER_PASS; n++) {
+    d[0] = (uint8_t)benchFrames; d[1] = (uint8_t)(benchFrames >> 8);
+    d[2] = (uint8_t)(benchFrames >> 16); d[3] = (uint8_t)(benchFrames >> 24);
+    sendFrame(0, EVT_BENCH, d, MAX_DATA);
+    benchFrames++;
+    benchBytes += MAX_DATA + 5;
+  }
 }
 
 #include "capture.h"     // analog Capture engine; uses sendFrame() and pinMode_[]
@@ -226,6 +260,17 @@ static void handleFrame() {
       txBegin(uartQueue(d, len));
       break;
 
+    case CMD_BENCH: {                    // duration_ms u16 (100-10000): start the speed test
+      if (len != 2) { txBegin(ST_BAD_LENGTH); break; }
+      uint16_t ms = d[0] | (d[1] << 8);
+      if (ms < 100 || ms > 10000) { txBegin(ST_BAD_VALUE); break; }
+      benchMs = ms; benchFrames = 0; benchBytes = 0;
+      benchStartMs = millis(); benchStartUs = micros();
+      benchOn = true;
+      txBegin(ST_OK);
+      break;
+    }
+
     default:
       txBegin(ST_UNKNOWN_CMD);
       break;
@@ -269,7 +314,7 @@ void setup() {
   for (uint8_t p = 0; p < NUM_PINS; p++) { pinMode_[p] = M_INPUT; pinValue[p] = 0; }
   safeState();
   ADC_SETUP();
-  Serial.begin(115200);
+  Serial.begin(115200);                // the baud rate only matters on the Uno R3 (see top)
   HW_WATCHDOG_BEGIN();
   uint8_t boot[4] = { PROTO_VERSION, FW_MAJOR, FW_MINOR, BOARD_ID };
   sendFrame(0, EVT_BOOT, boot, sizeof boot);
@@ -281,6 +326,7 @@ void loop() {
   while (Serial.available() > 0) rxByte((uint8_t)Serial.read());
   capService();
   uartService();
+  benchService();
 
   // Link watchdog: host went quiet -> put every pin in the safe state.
   if (hostActive && (uint32_t)(millis() - lastFrameMs) > LINK_TIMEOUT_MS) {

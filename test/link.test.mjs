@@ -233,6 +233,12 @@ await test('capture stops when pins leave capture mode', async () => {
   assert.equal(link.stats.captureBlocks, n);
 });
 
+await test('speed test works on the Uno build too', async () => {
+  const r = await link.bench(500);
+  assert.ok(r.frames > 20 && r.lost === 0 && r.frames === r.boardFrames, JSON.stringify(r));
+  assert.equal(link.state, LINK.UP);
+});
+
 link.stop();
 tr.kill();
 console.log(`\n${passed} tests passed. Stats: ${JSON.stringify(link.stats)} parser ${JSON.stringify(link.parser.stats)}`);

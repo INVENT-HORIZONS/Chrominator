@@ -207,6 +207,20 @@ await test('UART: All pins safe switches it off', async () => {
   assert.equal(tr.pinLog.filter(l => l === 'UART1 END').length, n + 1);
 });
 
+await test('speed test: board streams for 1 s, every frame arrives, link stays healthy', async () => {
+  const timeouts = link.stats.timeouts;
+  const r = await link.bench(1000);
+  assert.ok(r.frames > 100, `frames ${r.frames}`);
+  assert.equal(r.lost, 0);
+  assert.equal(r.frames, r.boardFrames, 'received = sent');
+  assert.equal(r.bytes, r.boardBytes);
+  assert.ok(r.boardMs >= 990 && r.boardMs < 1500, `board ms ${r.boardMs}`);
+  assert.equal(link.state, LINK.UP);
+  assert.equal(link.stats.timeouts, timeouts, 'commands still answered during the test');
+  console.log(`      (simulator: ${r.kBps.toFixed(0)} kB/s — not a hardware number)`);
+  await assert.rejects(link.request(CMD.BENCH, [50, 0]), e => e instanceof ProtocolError && e.status === 5);
+});
+
 await test('All pins safe returns every pin to Input', async () => {
   await link.resetPins();
   assert.ok(link.board.config.every(c => c.mode === MODE.INPUT));

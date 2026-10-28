@@ -114,6 +114,29 @@ export class ChrominatorLink extends EventTarget {
     }
   }
 
+  // Speed test: the board streams full-size EVT_BENCH frames for `ms` milliseconds; this counts
+  // what arrives. Resolves to { ms, frames, bytes, lost, kBps, boardFrames, boardBytes, boardMs, … }.
+  // Throughput counts whole frames on the wire (data + 5 bytes of framing).
+  async bench(ms = 3000) {
+    if (this.benchRun) throw new Error('A speed test is already running');
+    const b = this.benchRun = { frames: 0, bytes: 0, lost: 0, next: null, first: 0, last: 0, done: null };
+    const finished = new Promise((resolve, reject) => {
+      b.done = resolve;
+      b.timer = setTimeout(() => reject(new Error('The board did not finish the speed test (firmware too old?)')), ms + 3000);
+    });
+    try {
+      await this.request(CMD.BENCH, [ms & 0xFF, ms >> 8], this.opt.retries);
+      const done = await finished;
+      const span = Math.max(1, b.last - b.first);
+      return {
+        ms: span, frames: b.frames, bytes: b.bytes, lost: b.lost,
+        kBps: b.bytes / span,                                   // bytes per ms = kB/s
+        boardFrames: done.frames, boardBytes: done.bytes, boardMs: done.us / 1000,
+        boardKBps: done.bytes / Math.max(1, done.us / 1000)
+      };
+    } finally { clearTimeout(b.timer); this.benchRun = null; }
+  }
+
   async resetPins() {
     await this.request(CMD.RESET_PINS, [], this.opt.retries);
     this.board.config = decodeConfig(await this.request(CMD.GET_CONFIG));
@@ -179,6 +202,21 @@ export class ChrominatorLink extends EventTarget {
       return;
     }
     if (cmd === CMD.EVT_UART_RX) { this.#emit('uart-rx', data); return; }
+    if (cmd === CMD.EVT_BENCH) {
+      const b = this.benchRun; if (!b) return;
+      const n = (data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24)) >>> 0;
+      const now = performance.now();
+      if (!b.frames) b.first = now;
+      if (b.next != null && n > b.next) b.lost += n - b.next;
+      b.next = n + 1; b.frames++; b.bytes += data.length + 5; b.last = now;
+      return;
+    }
+    if (cmd === CMD.EVT_BENCH_DONE) {
+      const u32 = i => (data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24)) >>> 0;
+      const b = this.benchRun;
+      if (b) { if (b.next != null && u32(0) > b.next) b.lost += u32(0) - b.next; b.done({ frames: u32(0), bytes: u32(4), us: u32(8) }); }
+      return;
+    }
     if (cmd === CMD.EVT_BOOT) {
       this.capLastBlock.clear();
       this.#log('warn', 'Board reset (boot message received).');

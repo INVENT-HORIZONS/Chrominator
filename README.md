@@ -98,6 +98,11 @@ A0–A7 names also label their traces on the Oscilloscope and the columns of the
 **All pins safe** puts every pin back to a plain input. On the Nano R4, D0/D1 are ordinary pins (its USB is native). On the Uno, D0/D1 carry the USB serial link and
 can't be used.
 
+**Speed test.** Diagnostics has a **Speed test** button: the board sends data to Chrome as fast as it
+can for 3 seconds and Chrominator shows the measured kB/s and any lost frames. On the Nano R4 the
+link is the board's own (native) USB, not a 115200-baud serial line, so it can carry far more than
+the Uno's ~11.5 kB/s.
+
 **Status:** the red eye pulses with each heartbeat and the round-trip time shows on the right.
 *Link lost* means the board stopped answering for a second (the port is still open and the
 extension keeps trying). If the board hears nothing from the extension for 1.5 s it sets every

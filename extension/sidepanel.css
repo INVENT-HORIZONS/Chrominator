@@ -93,6 +93,10 @@ h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
 #uartRxRow.on .busname { color: var(--uart-rx); }
 #uartTxRow.on .busname { color: var(--uart-tx); }
 #uartTerm { padding: 2px 10px; font-size: 12px; }
+.bench { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
+.bench button { padding: 2px 10px; font-size: 12px; }
+.bench .note { margin: 0; }
+.bench b { font: 600 13px Consolas, monospace; color: var(--text); }
 .busrole.capture.dot { padding: 1px 4px; gap: 0; }
 .pin .popout { padding: 1px 8px; font-size: 11px; white-space: nowrap; }
 .pin.reserved { color: var(--muted); }

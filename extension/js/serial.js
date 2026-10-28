@@ -4,7 +4,11 @@
 // with NotFoundError) or in a popup-type window. So port selection falls back to chooser.html in a
 // normal tab. This was found the hard way in the htmlSerialPort project; don't remove it.
 
-export const SERIAL_OPTIONS = { baudRate: 115200, dataBits: 8, parity: 'none', stopBits: 1, flowControl: 'none', bufferSize: 1024 };
+// baudRate: Web Serial requires one. It sets the real UART speed on the Uno R3 (its USB-to-serial
+// chip); on the Nano R4 the port is the board's own (native) USB, so the value is ignored and data
+// moves as fast as USB and the firmware allow. bufferSize: Chrome's read buffer. 64 KB so a fast
+// native-USB stream isn't throttled by small reads.
+export const SERIAL_OPTIONS = { baudRate: 115200, dataBits: 8, parity: 'none', stopBits: 1, flowControl: 'none', bufferSize: 65536 };
 
 const LAST_PORT_KEY = 'chrominator.lastPort';
 

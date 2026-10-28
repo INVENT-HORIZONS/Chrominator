@@ -129,6 +129,27 @@ function log(level, message) {
   while (ol.children.length > MAX_LOG) ol.lastChild.remove();
 }
 
+// Speed test: board -> Chrome throughput over the real link (Diagnostics panel).
+const BENCH_MS = 3000;
+async function runBench() {
+  if (!link?.board) return;
+  const btn = $('btnBench'), out = $('benchResult');
+  btn.disabled = true;
+  out.textContent = `Running for ${BENCH_MS / 1000} s…`;
+  try {
+    const r = await link.bench(BENCH_MS);
+    const kB = r.kBps >= 100 ? r.kBps.toFixed(0) : r.kBps.toFixed(1);
+    out.innerHTML = '';
+    const b = document.createElement('b'); b.textContent = `${kB} kB/s`;
+    out.append(b, ` board → Chrome · ${r.frames.toLocaleString()} frames of 53 bytes in ${(r.ms / 1000).toFixed(2)} s · ${r.lost ? `${r.lost} lost` : 'none lost'}`);
+    log('info', `Speed test: ${kB} kB/s board → Chrome (${r.frames} frames, ${r.lost} lost; board sent ${r.boardFrames} in ${r.boardMs.toFixed(0)} ms).`);
+  } catch (e) {
+    out.textContent = `Speed test failed: ${e.message}`;
+    log('error', `Speed test failed: ${e.message}`);
+  } finally { btn.disabled = !link?.board; }
+}
+$('btnBench').addEventListener('click', runBench);
+
 function renderStats() {
   const s = link?.stats, p = link?.parser.stats;
   const rowsOut = s ? [
@@ -235,6 +256,7 @@ async function disconnect(say = true) {
   uart = null;
   syncUartControls();
   $('scopeSection').hidden = true;
+  $('btnBench').disabled = true;
   // Close every pop-out: oscilloscope windows and the terminal.
   scopeBridge.closeAll();
   term.closeAll();
@@ -281,6 +303,7 @@ function adcNames() {
 
 function buildPins({ hello, caps, config }) {
   loadNetNames(hello.boardId);
+  $('btnBench').disabled = false;
   scopeBridge.clear();
   $('boardInfo').textContent = `${hello.boardName} · firmware ${hello.fwMajor}.${hello.fwMinor} · ${hello.adcBits}-bit ADC`;
   scope.setBoard(hello);

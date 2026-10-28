@@ -9,16 +9,19 @@ The host is always the one that asks; the board only speaks unprompted for event
 
 ## Physical link
 
-| Setting | Value |
-|---|---|
-| Baud | 115200 |
-| Format | 8 data bits, no parity, 1 stop bit (8N1) |
-| Flow control | none |
-| Byte order | little-endian for all multi-byte numbers |
+The protocol runs over a USB serial port (Web Serial in the extension). What that port is depends
+on the board:
 
-Opening the port on an Uno R3 pulses DTR, which resets the board (auto-reset). The bootloader
-runs for about 1.5 s and may print junk; framing and CRC make the host ignore it. The Nano R4
-uses native USB: the baud rate is ignored and opening the port does not reset it.
+| | Nano R4 | Uno R3 |
+|---|---|---|
+| Port | the RA4M1's **own (native) full-speed USB**, a USB CDC device; no UART in between | a real UART, bridged to USB by the board's 16U2 chip |
+| Speed | as fast as USB and the firmware allow; the baud rate setting is **ignored** | **115200 baud**, 8N1, no flow control: about 11.5 kB/s |
+| Opening the port | does not reset the board | pulses DTR: the board resets (auto-reset) |
+
+Byte order is little-endian for all multi-byte numbers. The host always opens the port as
+115200 8N1 because Web Serial needs a value; only the Uno uses it. On the Uno, the bootloader runs
+for about 1.5 s after the reset and may print junk; framing and CRC make the host ignore it.
+Use **BENCH** (*Speed test* below) to measure a board's real throughput.
 
 ## Frame format
 
@@ -110,6 +113,7 @@ on RESET_PINS or failsafe.
 | 0x13 | RESET_PINS | — | — |
 | 0x20 | UART_CONFIG | baud u32 (300–115200), format u8 | — |
 | 0x21 | UART_TX | 1–48 bytes to send | — (status BUSY if the queue is full) |
+| 0x30 | BENCH | duration_ms u16 (100–10000) | — (then the board streams; see *Speed test*) |
 
 **Board IDs:** 1 = Arduino Uno R3, 2 = Uno R4 Minima, 3 = Uno R4 WiFi, 4 = Arduino Nano R4.
 
@@ -135,6 +139,8 @@ Notes:
 | 0x61 | EVT_FAILSAFE | — |
 | 0x62 | EVT_CAPTURE | block u16, adc_channel u8, count u8, bits u8, packed samples |
 | 0x63 | EVT_UART_RX | 1–32 bytes received on the UART's RX pin |
+| 0x64 | EVT_BENCH | frame_counter u32, then 44 filler bytes (48 bytes of DATA) |
+| 0x65 | EVT_BENCH_DONE | frames u32, bytes u32, elapsed_us u32 (what the board sent) |
 
 EVT_BOOT is sent once when the firmware starts. EVT_FAILSAFE is sent when the link watchdog
 trips (the host may not receive it, which is why the PING flag also records it).
@@ -169,8 +175,10 @@ Putting one or more ADC pins in **CAPTURE** mode starts a fixed-rate sampler on 
   the partly filled block and any queued blocks are discarded (a short gap on the other channels).
   Failsafe and RESET_PINS stop capture.
 - **Bandwidth:** on the Uno each channel costs 50 bytes per 32.768 ms ≈ 1.5 kB/s; all six channels
-  use about 9.2 kB/s of the link's 11.5 kB/s, leaving room for PING and READ_ALL. On the Nano R4
-  each channel costs 24 bytes per 80 ms = 300 B/s, 2.4 kB/s for all eight.
+  use about 9.2 kB/s of the Uno's 11.5 kB/s link, leaving room for PING and READ_ALL. On the Nano R4
+  each channel costs 24 bytes per 80 ms = 300 B/s, 2.4 kB/s for all eight: a tiny fraction of
+  native USB. The 100 samples/s rate is a firmware choice (samples taken from the main loop), not a
+  link limit.
 
 ## UART
 
@@ -193,6 +201,15 @@ bridge that UART to the host.
 - **EVT_UART_RX** carries received bytes, sent when 32 have arrived or 5 ms after the first byte of
   a partial chunk. Bytes received while RX is off are discarded. Bursts at 115200 are absorbed by
   the board's RX buffer and drained over USB.
+
+## Speed test
+
+BENCH measures board → host throughput on the real link. After the OK reply, for `duration_ms` the
+board sends full-size EVT_BENCH frames (53 bytes on the wire each) as fast as the port accepts
+them, a few per main-loop pass so it keeps answering commands, then one EVT_BENCH_DONE with how
+many frames and bytes it sent and how long it took. The host counts what arrived between the
+first and last EVT_BENCH (kB/s = bytes ÷ ms) and checks the frame counters for gaps (lost frames).
+Frames are written to the port in one call each (on native USB, one write ≈ one USB packet).
 
 ## Heartbeat and disconnection detection
 
@@ -228,7 +245,7 @@ board's answer. The board is always the source of truth for pin state.
 
 ## Connection sequence
 
-1. Open the port at 115200 8N1.
+1. Open the port (115200 8N1; the speed only matters on the Uno, see *Physical link*).
 2. Send HELLO every 300 ms until a HELLO reply arrives (up to 5 s; covers the Uno's
    auto-reset and bootloader). An EVT_BOOT also triggers an immediate HELLO.
 3. GET_CAPS, then GET_CONFIG.

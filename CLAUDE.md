@@ -61,7 +61,13 @@ Web Serial patterns and the side-panel port-picker workaround used here.
 
 ## Protocol essentials (details in docs/PROTOCOL.md)
 
-- 115200 8N1, no flow control. Binary frames: `A5 LEN SEQ CMD DATA… CRC8` (poly 0x07, init 0, over LEN..DATA).
+- Link: on the **Nano R4 the port is native USB (CDC)**: no UART, baud ignored, USB speed. On the
+  Uno R3 it's a real 115200 8N1 UART behind the 16U2 (~11.5 kB/s). The host opens 115200 8N1 for
+  both (Web Serial needs a value; read buffer 64 KB). Don't describe the Nano R4 link as 115200 baud.
+  `sendFrame` writes each frame in ONE `Serial.write` (one USB packet on native USB).
+  **Speed test**: BENCH (0x30) / EVT_BENCH (0x64) / EVT_BENCH_DONE (0x65), `link.bench(ms)`,
+  Diagnostics → Speed test. The JS parser handles ~1.9 MB/s (simulator), so the host isn't the limit.
+- Binary frames: `A5 LEN SEQ CMD DATA… CRC8` (poly 0x07, init 0, over LEN..DATA).
 - Replies use `CMD | 0x80` and the request's SEQ; DATA[0] is a status byte. Events use SEQ 0.
 - Host PINGs every 250 ms; link **LOST** after 1000 ms of silence; requests time out at 400 ms;
   user actions retry twice. All commands are idempotent.
