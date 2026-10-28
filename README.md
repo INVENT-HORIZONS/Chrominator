@@ -82,6 +82,9 @@ save CSV. Click **📌 Keep on top** in that window to turn it into a Picture-in
 Picture-in-Picture window at a time: keeping a second channel on top hands the first one back to
 its regular window.
 
+Disconnecting (or unplugging the board) closes all pop-out windows: oscilloscope windows, the
+always-on-top window and the UART terminal.
+
 **Generator.** Right under the Oscilloscope, a placeholder for the Nano R4's 12-bit DAC on A0. It has no
 controls yet.
 

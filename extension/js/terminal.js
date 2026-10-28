@@ -190,6 +190,7 @@ function send() {
 
 // ---------------- channel ----------------
 ch.onmessage = ({ data: m }) => {
+  if (m?.type === 'close') { window.close(); return; }                 // the side panel disconnected
   if (m?.type === 'status') { status = m; lastStatus = Date.now(); showStatus(); }
   else if (m?.type === 'data') append({ dir: m.dir, bytes: m.bytes, t: m.t });
   else if (m?.type === 'history') { entries = []; entryBytes = 0; for (const e of m.entries) { entries.push(e); entryBytes += e.bytes.length; } rerender(); }

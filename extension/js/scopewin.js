@@ -2,6 +2,7 @@
 // open a Picture-in-Picture window itself. Its "Keep on top" button moves the scope into a
 // Picture-in-Picture window (always on top) and minimizes this one; closing the PiP brings it back.
 import { ScopeView, openPipScope } from './scopeview.js';
+import { SCOPE_CHANNEL } from './scopebridge.js';
 
 const CH = +new URLSearchParams(location.search).get('ch') || 0;
 let view = null;
@@ -27,5 +28,9 @@ async function keepOnTop() {
     chrome.windows.update(me.id, { state: 'normal', focused: true }).catch(() => {});
   });
 }
+
+// The side panel disconnected: close this window (and its always-on-top window with it).
+const bc = new BroadcastChannel(SCOPE_CHANNEL);
+bc.onmessage = ({ data: m }) => { if (m?.type === 'close') window.close(); };
 
 showHere();

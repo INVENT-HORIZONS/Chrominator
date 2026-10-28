@@ -177,6 +177,10 @@ constants/handlers, and `extension/js/protocol.js` (+ `link.js` if behaviour cha
   newer one looks like a board restart to `Scope.add`). `Scope` takes window APIs (rAF,
   ResizeObserver, getComputedStyle, createElement) from its canvas's own window, so it keeps
   drawing in a PiP window even when the window running the code is hidden.
+- **Disconnect closes every pop-out** (user requirement): `disconnect()` (also run on USB unplug)
+  calls `scopeBridge.closeAll()` and `term.closeAll()`: tracked windows are removed with
+  `chrome.windows.remove`, and a `{ type: 'close' }` broadcast makes any other scope/terminal window
+  close itself. An always-on-top PiP closes with its opener window.
 - **Net names**: each pin row has `input.net` (4th grid column, 84px) for the circuit net it's wired
   to, max 16 chars, saved in localStorage `chrominator.netNames.<boardId>` ({ pin: name }).
   `scope.setNames(adcNames())` shows A-pin names in the Oscilloscope legend ("A0 VBAT") and CSV

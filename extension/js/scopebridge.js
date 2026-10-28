@@ -4,6 +4,7 @@
 //   panel -> window: { type: 'status', ch, hello, active, name, color }   every second and on change
 //                    { type: 'block', ch, block }                         each EVT_CAPTURE block
 //                    { type: 'history', ch, blocks: [...] }               answer to 'hello'
+//                    { type: 'close' }                                    disconnected: close every pop-out
 //   window -> panel: { type: 'hello', ch, id }   a view opened (send history + status)
 //                    { type: 'bye', ch, id }     a view closed
 //
@@ -49,6 +50,16 @@ export class ScopeBridge {
     h.push(b);
     if (h.length > HISTORY_BLOCKS) h.splice(0, h.length - HISTORY_BLOCKS);
     if (this.#watched(b.channel)) this.ch.postMessage({ type: 'block', ch: b.channel, block: b });
+  }
+
+  // Disconnected: close every pop-out window (an always-on-top PiP closes with its window). Windows
+  // this side panel opened are removed directly; 'close' also reaches any others (e.g. opened by an
+  // earlier side panel session), which close themselves.
+  closeAll() {
+    for (const id of this.windows.values()) chrome.windows.remove(id).catch(() => {});
+    this.windows.clear();
+    this.views.clear();
+    this.ch.postMessage({ type: 'close' });
   }
 
   // Forget a channel's history (it left capture mode, or the board changed).

@@ -4,6 +4,7 @@
 //   panel -> window: { type: 'status', ...status }   every second and on any change
 //                    { type: 'data', dir: 'rx'|'tx', bytes: [...], t }
 //                    { type: 'history', entries: [{ dir, bytes, t }, ...] }   answer to 'hello'
+//                    { type: 'close' }                 disconnected: close the terminal window
 //   window -> panel: { type: 'hello' }                 window opened: send history + status
 //                    { type: 'send', id, bytes: [...] } -> { type: 'sent', id, error? }
 //                    { type: 'clear' }                 forget the history
@@ -35,6 +36,14 @@ export class TerminalBridge {
     }
     const w = await chrome.windows.create({ url: chrome.runtime.getURL('terminal.html'), type: 'popup', width: 760, height: 520 });
     this.windowId = w.id;
+  }
+
+  // Disconnected: close the terminal window (directly if this side panel opened it; 'close' reaches
+  // one opened earlier too, which closes itself).
+  closeAll() {
+    if (this.windowId != null) chrome.windows.remove(this.windowId).catch(() => {});
+    this.windowId = null;
+    this.ch.postMessage({ type: 'close' });
   }
 
   data(dir, bytes) {

@@ -238,6 +238,9 @@ async function disconnect(say = true) {
   uart = null;
   syncUartControls();
   $('scopeSection').hidden = true;
+  // Close every pop-out: oscilloscope windows (and an always-on-top one with them) and the terminal.
+  scopeBridge.closeAll();
+  term.closeAll();
   renderStats();
   if (say) log('info', 'Disconnected.');
 }
